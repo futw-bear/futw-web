@@ -4,6 +4,7 @@ import {
 	isRefreshDue,
 	registerDailyPeriodicSync,
 } from "./daily-sync";
+import { notifyMarketDataUpdated } from "./storage-events";
 
 export const PRICE_MARKETS = ["TSE", "OTC"] as const;
 export type PriceMarket = (typeof PRICE_MARKETS)[number];
@@ -47,6 +48,7 @@ export function storePricesSnapshot(
 		);
 	}
 	storage.setItem(PRICES_SYNCED_AT_KEY, snapshot.syncedAt);
+	notifyMarketDataUpdated(storage);
 }
 
 export async function downloadPrices(

@@ -4,6 +4,7 @@ import {
 	isRefreshDue,
 	registerDailyPeriodicSync,
 } from "./daily-sync";
+import { notifyMarketDataUpdated } from "./storage-events";
 
 export const SECURITIES_API_URL = "/api/pub/securities";
 export const SECURITIES_STORAGE_KEY = "securities";
@@ -37,6 +38,7 @@ export function storeSecuritiesSnapshot(
 ) {
 	storage.setItem(SECURITIES_STORAGE_KEY, JSON.stringify(snapshot.securities));
 	storage.setItem(SECURITIES_SYNCED_AT_KEY, snapshot.syncedAt);
+	notifyMarketDataUpdated(storage);
 }
 
 export async function downloadSecurities(
