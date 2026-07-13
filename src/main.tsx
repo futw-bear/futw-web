@@ -1,5 +1,6 @@
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
+import { initializePricesSync } from "./lib/prices-sync";
 import { initializeSecuritiesSync } from "./lib/securities-sync";
 import { routeTree } from "./routeTree.gen";
 
@@ -26,4 +27,4 @@ if (!rootElement.innerHTML) {
 	root.render(<RouterProvider router={router} />);
 }
 
-void initializeSecuritiesSync();
+void Promise.all([initializeSecuritiesSync(), initializePricesSync()]);

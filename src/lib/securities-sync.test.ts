@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	getMostRecentTaipeiRefreshAt,
 	getNextTaipeiRefreshAt,
+} from "./daily-sync";
+import {
 	SECURITIES_STORAGE_KEY,
 	SECURITIES_SYNCED_AT_KEY,
 	syncSecuritiesIfDue,

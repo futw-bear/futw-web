@@ -1,5 +1,9 @@
-const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+import {
+	getAppServiceWorkerRegistration,
+	getNextTaipeiRefreshAt,
+	isRefreshDue,
+	registerDailyPeriodicSync,
+} from "./daily-sync";
 
 export const SECURITIES_API_URL = "/api/pub/securities";
 export const SECURITIES_STORAGE_KEY = "securities";
@@ -8,15 +12,6 @@ export const SECURITIES_PERIODIC_SYNC_TAG = "refresh-securities";
 
 type Fetcher = typeof fetch;
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
-
-type PeriodicSyncManager = {
-	getTags(): Promise<string[]>;
-	register(tag: string, options: { minInterval: number }): Promise<void>;
-};
-
-type RegistrationWithPeriodicSync = ServiceWorkerRegistration & {
-	periodicSync?: PeriodicSyncManager;
-};
 
 type SecuritiesUpdatedMessage = {
 	type: "SECURITIES_UPDATED";
@@ -29,39 +24,11 @@ export type SecuritiesSnapshot = {
 	syncedAt: string;
 };
 
-export function getMostRecentTaipeiRefreshAt(now = new Date()) {
-	const taipeiNow = new Date(now.getTime() + TAIPEI_OFFSET_MS);
-	const refreshAt = Date.UTC(
-		taipeiNow.getUTCFullYear(),
-		taipeiNow.getUTCMonth(),
-		taipeiNow.getUTCDate(),
-		0,
-	);
-
-	return new Date(
-		taipeiNow.getUTCHours() >= 8 ? refreshAt : refreshAt - ONE_DAY_MS,
-	);
-}
-
-export function getNextTaipeiRefreshAt(now = new Date()) {
-	const mostRecentRefreshAt = getMostRecentTaipeiRefreshAt(now);
-	const nextRefreshAt = new Date(mostRecentRefreshAt.getTime() + ONE_DAY_MS);
-
-	return nextRefreshAt.getTime() > now.getTime()
-		? nextRefreshAt
-		: new Date(nextRefreshAt.getTime() + ONE_DAY_MS);
-}
-
 export function isSecuritiesRefreshDue(
 	lastSyncedAt: string | null,
 	now = new Date(),
 ) {
-	if (!lastSyncedAt) return true;
-
-	const lastSyncTime = Date.parse(lastSyncedAt);
-	if (Number.isNaN(lastSyncTime)) return true;
-
-	return lastSyncTime < getMostRecentTaipeiRefreshAt(now).getTime();
+	return isRefreshDue(lastSyncedAt, now, 8);
 }
 
 export function storeSecuritiesSnapshot(
@@ -112,23 +79,6 @@ export async function syncSecuritiesIfDue({
 	return snapshot;
 }
 
-async function registerPeriodicSync(registration: ServiceWorkerRegistration) {
-	const periodicSync = (registration as RegistrationWithPeriodicSync)
-		.periodicSync;
-	if (!periodicSync) return;
-
-	try {
-		const tags = await periodicSync.getTags();
-		if (!tags.includes(SECURITIES_PERIODIC_SYNC_TAG)) {
-			await periodicSync.register(SECURITIES_PERIODIC_SYNC_TAG, {
-				minInterval: ONE_DAY_MS,
-			});
-		}
-	} catch {
-		// Foreground refreshes remain available when background sync is denied.
-	}
-}
-
 function sendSnapshotToServiceWorker(
 	registration: ServiceWorkerRegistration,
 	snapshot: SecuritiesSnapshot,
@@ -141,7 +91,10 @@ function sendSnapshotToServiceWorker(
 function scheduleForegroundRefresh(
 	registration: ServiceWorkerRegistration | null,
 ) {
-	const delay = Math.max(0, getNextTaipeiRefreshAt().getTime() - Date.now());
+	const delay = Math.max(
+		0,
+		getNextTaipeiRefreshAt(new Date(), 8).getTime() - Date.now(),
+	);
 
 	window.setTimeout(() => {
 		void syncSecuritiesIfDue()
@@ -157,8 +110,9 @@ function scheduleForegroundRefresh(
 
 export async function initializeSecuritiesSync() {
 	let registration: ServiceWorkerRegistration | null = null;
-	let registrationPromise: Promise<ServiceWorkerRegistration | null> =
-		Promise.resolve(null);
+	let registrationPromise = Promise.resolve<ServiceWorkerRegistration | null>(
+		null,
+	);
 
 	if ("serviceWorker" in navigator) {
 		navigator.serviceWorker.addEventListener("message", (event) => {
@@ -168,14 +122,7 @@ export async function initializeSecuritiesSync() {
 			}
 		});
 
-		registrationPromise = navigator.serviceWorker
-			.register("/service-worker.js")
-			.then(async (serviceWorkerRegistration) => {
-				await navigator.serviceWorker.ready;
-				await registerPeriodicSync(serviceWorkerRegistration);
-				return serviceWorkerRegistration;
-			})
-			.catch(() => null);
+		registrationPromise = getAppServiceWorkerRegistration();
 	}
 
 	let snapshot: SecuritiesSnapshot | null = null;
@@ -187,6 +134,7 @@ export async function initializeSecuritiesSync() {
 
 	registration = await registrationPromise;
 	if (registration) {
+		await registerDailyPeriodicSync(registration, SECURITIES_PERIODIC_SYNC_TAG);
 		if (snapshot) {
 			sendSnapshotToServiceWorker(registration, snapshot);
 		} else {
