@@ -85,14 +85,6 @@ svg { width: 20px; height: 20px; }
   background: linear-gradient(135deg, oklch(94% 0.012 70), var(--surface));
 }
 
-.brand-mark::after {
-  content: "";
-  width: 14px;
-  height: 14px;
-  border: 1.5px dashed oklch(72% 0.018 60);
-  border-radius: 5px;
-}
-
 .icon-button {
   width: 38px;
   height: 38px;

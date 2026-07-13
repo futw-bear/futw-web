@@ -5,7 +5,12 @@ import type { ReactNode } from "react";
 type NavigationKey = "watchlist" | "market" | "account";
 
 export function BrandMark() {
-	return <span className="brand-mark" aria-hidden="true" />;
+  return (
+    <picture className="brand-mark">
+      <source srcSet="./logo192.webp" type="image/webp" />
+      <img src="./android-chrome-192x192.png" alt="brand-icon"></img>
+    </picture>
+  );
 }
 
 export function PageHeader({
