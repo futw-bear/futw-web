@@ -226,7 +226,7 @@ svg { width: 20px; height: 20px; }
   background: var(--surface);
 }
 .index-card.compact { min-height: 96px; padding: 11px 10px; border-radius: 15px; }
-.index-card > span:first-child { color: var(--muted); font-size: 12px; }
+.index-card__header { display: flex; align-items: center; justify-content: space-between; gap: 6px; color: var(--muted); font-size: 12px; }
 .index-card > strong { font-size: 20px; font-variant-numeric: tabular-nums; }
 .index-card.compact > strong { font-size: 16px; }
 .index-delta { display: flex; align-items: baseline; gap: 2px; font-variant-numeric: tabular-nums; }
@@ -236,12 +236,9 @@ svg { width: 20px; height: 20px; }
 .index-delta small { font-size: 11px; font-weight: 680; }
 .compact .index-delta strong { font-size: 12px; }
 .compact .index-delta small { font-size: 10px; }
-.index-sparkline { display: block; width: 100%; height: 30px; }
-.compact .index-sparkline { height: 22px; }
-.index-line.gain { stroke: var(--gain); }
-.index-line.loss { stroke: var(--loss); }
-.index-fill.gain { fill: oklch(91% 0.06 25 / 0.62); }
-.index-fill.loss { fill: oklch(90% 0.055 150 / 0.58); }
+.index-delta.neutral { color: var(--muted); }
+.market-stale-warning .stale-warning__message { right: 0; left: auto; }
+.market-data-state { margin-bottom: 10px; padding: 10px 12px; border: 1px solid oklch(86% 0.06 85); border-radius: 12px; background: oklch(97% 0.035 85); color: oklch(48% 0.1 70); font-size: 13px; }
 
 /* Account */
 .balance-card {

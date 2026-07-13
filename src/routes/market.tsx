@@ -1,91 +1,97 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
+import { downloadMarketIndexes, type MarketIndex } from "#/lib/market-index";
 
 export const Route = createFileRoute("/market")({ component: MarketPage });
 
-const indexes = [
-	{
-		name: "加權指數",
-		value: "23,184.62",
-		change: "+111.04",
-		percent: "+0.48%",
-		direction: "gain",
-		compact: false,
-		path: "M0 24 C12 21 18 24 28 19 C39 12 48 16 58 12 C73 6 84 14 98 9 C112 5 122 8 148 4",
-	},
-	{
-		name: "櫃買指數",
-		value: "276.84",
-		change: "-0.50",
-		percent: "-0.18%",
-		direction: "loss",
-		compact: false,
-		path: "M0 20 C15 16 23 18 35 15 C51 12 62 18 77 15 C93 12 105 21 119 19 C130 18 139 23 148 21",
-	},
-	{
-		name: "電子指數",
-		value: "1,286.70",
-		change: "+9.20",
-		percent: "+0.72%",
-		direction: "gain",
-		compact: true,
-		path: "M0 18 C8 15 15 17 22 12 C34 5 43 12 54 8 C66 4 76 7 92 3",
-	},
-	{
-		name: "金融指數",
-		value: "2,148.30",
-		change: "+4.50",
-		percent: "+0.21%",
-		direction: "gain",
-		compact: true,
-		path: "M0 14 C10 12 17 15 27 13 C40 10 48 12 59 9 C72 8 80 10 92 7",
-	},
-	{
-		name: "半導體指數",
-		value: "682.90",
-		change: "+7.43",
-		percent: "+1.10%",
-		direction: "gain",
-		compact: true,
-		path: "M0 20 C9 17 15 18 25 12 C36 5 44 9 54 6 C66 2 78 5 92 4",
-	},
-];
+const EMPTY_INDEXES: MarketIndex[] = [
+	{ name: "加權指數", compact: false },
+	{ name: "櫃買指數", compact: false },
+	{ name: "電子指數", compact: true },
+	{ name: "金融指數", compact: true },
+	{ name: "半導體指數", compact: true },
+].map(({ name, compact }) => ({
+	name,
+	compact,
+	value: "--",
+	change: "--",
+	percent: "--",
+	direction: "neutral",
+	date: null,
+	isStale: false,
+}));
 
-function IndexCard({ index }: { index: (typeof indexes)[number] }) {
+function IndexCard({
+	index,
+	activeWarning,
+	onToggleWarning,
+}: {
+	index: MarketIndex;
+	activeWarning: string | null;
+	onToggleWarning: (name: string) => void;
+}) {
 	return (
 		<article className={`index-card ${index.compact ? "compact" : ""}`}>
-			<span>{index.name}</span>
+			<div className="index-card__header">
+				<span>{index.name}</span>
+				{index.isStale && index.date && (
+					<div className="stale-warning market-stale-warning">
+						<button
+							type="button"
+							className="stale-warning__button"
+							aria-expanded={activeWarning === index.name}
+							aria-controls={`market-stale-${index.name}`}
+							aria-label={`${index.name}資料日期為 ${index.date}，可能過時`}
+							onClick={() => onToggleWarning(index.name)}
+						>
+							<AlertTriangle />
+						</button>
+						{activeWarning === index.name && (
+							<output
+								className="stale-warning__message"
+								id={`market-stale-${index.name}`}
+							>
+								該資料為 {index.date} 的資料，可能過時
+							</output>
+						)}
+					</div>
+				)}
+			</div>
 			<strong className={index.direction}>{index.value}</strong>
 			<span className={`index-delta ${index.direction}`}>
 				<strong>{index.change}</strong>
 				<small>({index.percent})</small>
 			</span>
-			<svg
-				className="index-sparkline"
-				viewBox={index.compact ? "0 0 92 24" : "0 0 148 34"}
-				preserveAspectRatio="none"
-				aria-hidden="true"
-			>
-				{!index.compact && (
-					<path
-						className={`index-fill ${index.direction}`}
-						d={`M0 31 ${index.path} L148 34 L0 34 Z`}
-					/>
-				)}
-				<path
-					className={`index-line ${index.direction}`}
-					d={index.path}
-					fill="none"
-					strokeWidth="2.4"
-				/>
-			</svg>
 		</article>
 	);
 }
 
 function MarketPage() {
+	const [indexes, setIndexes] = useState(EMPTY_INDEXES);
+	const [isLoading, setIsLoading] = useState(true);
+	const [error, setError] = useState(false);
+	const [activeWarning, setActiveWarning] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		void downloadMarketIndexes()
+			.then((downloadedIndexes) => {
+				if (!cancelled) setIndexes(downloadedIndexes);
+			})
+			.catch(() => {
+				if (!cancelled) setError(true);
+			})
+			.finally(() => {
+				if (!cancelled) setIsLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
 	return (
 		<>
 			<main className="app-page market-page">
@@ -97,15 +103,38 @@ function MarketPage() {
 						</button>
 					}
 				/>
-				<section className="index-board" aria-label="市場指數">
+				{error && (
+					<div className="market-data-state" role="alert">
+						市場指數暫時無法取得，請稍後再試。
+					</div>
+				)}
+				<section
+					className="index-board"
+					aria-label="市場指數"
+					aria-busy={isLoading}
+				>
 					<div className="index-row primary">
 						{indexes.slice(0, 2).map((index) => (
-							<IndexCard key={index.name} index={index} />
+							<IndexCard
+								key={index.name}
+								index={index}
+								activeWarning={activeWarning}
+								onToggleWarning={(name) =>
+									setActiveWarning((active) => (active === name ? null : name))
+								}
+							/>
 						))}
 					</div>
 					<div className="index-row secondary">
 						{indexes.slice(2).map((index) => (
-							<IndexCard key={index.name} index={index} />
+							<IndexCard
+								key={index.name}
+								index={index}
+								activeWarning={activeWarning}
+								onToggleWarning={(name) =>
+									setActiveWarning((active) => (active === name ? null : name))
+								}
+							/>
 						))}
 					</div>
 				</section>
