@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>自選</title>
+  <style>
+    :root {
+      --bg: oklch(97% 0.018 70);
+      --surface: oklch(99% 0.008 70);
+      --fg: oklch(22% 0.02 50);
+      --muted: oklch(50% 0.018 50);
+      --border: oklch(90% 0.014 70);
+      --accent: oklch(64% 0.13 28);
+      --font-display: 'Tiempos Headline', 'Newsreader', 'Iowan Old Style', Georgia, serif;
+      --font-body: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --gain: oklch(59% 0.21 25);
+      --loss: oklch(55% 0.16 150);
+      --soft-gain: oklch(96% 0.04 25);
+      --soft-loss: oklch(95% 0.04 150);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 15px;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 18px 16px 92px;
+      background:
+        linear-gradient(180deg, oklch(99% 0.008 70), var(--bg) 32%),
+        var(--bg);
+    }
+
+    .topbar, .tabs, .row, .nav, .actions, .metric-row {
+      display: flex;
+      align-items: center;
+    }
+
+    .topbar {
+      justify-content: space-between;
+      gap: 16px;
+      margin-block-end: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-inline-size: 0;
+    }
+
+    .mark {
+      inline-size: 34px;
+      block-size: 34px;
+      border-radius: 12px;
+      background:
+        linear-gradient(135deg, oklch(94% 0.012 70), oklch(99% 0.008 70));
+      border: 1px solid var(--border);
+      color: transparent;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+    }
+
+    .mark::after {
+      content: "";
+      inline-size: 14px;
+      block-size: 14px;
+      border-radius: 5px;
+      border: 1.5px dashed oklch(72% 0.018 60);
+    }
+
+    .brand-title {
+      display: grid;
+      gap: 2px;
+    }
+
+    .brand-title strong {
+      font-size: 20px;
+      line-height: 1.05;
+    }
+
+    .icon-button {
+      inline-size: 36px;
+      block-size: 36px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--surface);
+      color: var(--fg);
+      display: grid;
+      place-items: center;
+    }
+
+    svg { inline-size: 20px; block-size: 20px; }
+
+    .tabs {
+      gap: 8px;
+      overflow: auto;
+      padding-block: 2px 12px;
+      scrollbar-width: none;
+    }
+
+    .tab {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: var(--muted);
+      background: transparent;
+      font-weight: 650;
+    }
+
+    .tab.active {
+      background: var(--fg);
+      color: var(--surface);
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      margin-block-end: 2px;
+    }
+
+    .sort {
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .list {
+      display: grid;
+      gap: 2px;
+    }
+
+    .row {
+      min-block-size: 74px;
+      display: grid;
+      grid-template-columns: minmax(92px, 1fr) 82px 80px 70px;
+      gap: 10px;
+      align-items: center;
+      border-block-end: 1px solid oklch(92% 0.01 70);
+    }
+
+    .stock {
+      display: grid;
+      gap: 5px;
+      min-inline-size: 0;
+    }
+
+    .stock strong {
+      font-size: 18px;
+      line-height: 1.12;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .stock span {
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .spark svg {
+      inline-size: 82px;
+      block-size: 34px;
+      overflow: visible;
+    }
+
+    .price {
+      display: grid;
+      justify-items: end;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .price strong {
+      font-size: 18px;
+      color: var(--gain);
+    }
+
+    .price .down { color: var(--loss); }
+
+    .pill {
+      justify-self: end;
+      min-inline-size: 66px;
+      padding: 6px 8px;
+      border-radius: 11px;
+      text-align: center;
+      font-weight: 760;
+      font-variant-numeric: tabular-nums;
+      display: grid;
+      gap: 2px;
+    }
+
+    .pill span {
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .pill strong {
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .pill.gain {
+      color: var(--gain);
+      background: var(--soft-gain);
+    }
+
+    .pill.loss {
+      color: var(--loss);
+      background: var(--soft-loss);
+    }
+
+    .actions {
+      justify-content: center;
+      gap: 22px;
+      color: var(--muted);
+      font-weight: 650;
+      padding-block: 16px 10px;
+    }
+
+    .actions span {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .nav {
+      position: fixed;
+      inset-inline: 0;
+      inset-block-end: 0;
+      block-size: 72px;
+      justify-content: space-around;
+      background: oklch(99% 0.006 70 / 0.94);
+      backdrop-filter: blur(18px);
+      border-block-start: 1px solid var(--border);
+    }
+
+    .nav a {
+      min-inline-size: 72px;
+      min-block-size: 56px;
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .nav a.active { color: var(--accent); }
+    .gain-stroke { stroke: var(--gain); }
+    .loss-stroke { stroke: var(--loss); }
+    .fill-gain { fill: oklch(89% 0.06 25 / 0.6); }
+    .fill-loss { fill: oklch(90% 0.05 150 / 0.5); }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <div class="brand-title">
+          <strong>自選</strong>
+        </div>
+      </div>
+      <button class="icon-button" aria-label="搜尋">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>
+      </button>
+    </header>
+
+    <nav class="tabs" aria-label="自選分類">
+      <span class="tab active">全部</span>
+      <span class="tab">證券</span>
+      <span class="tab">ETF</span>
+    </nav>
+
+    <div class="toolbar">
+      <span></span>
+      <span class="sort">價格 <svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 7 4 5H8l4-5Zm0 10-4-5h8l-4 5Z"/></svg></span>
+      <span class="sort">漲跌 <svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 7 4 5H8l4-5Zm0 10-4-5h8l-4 5Z"/></svg></span>
+    </div>
+
+    <section class="list" aria-label="自選清單">
+      <div class="row">
+        <div class="stock"><strong>台積電</strong><span>2330</span></div>
+        <div class="spark"><svg viewBox="0 0 82 34"><path class="fill-gain" d="M1 31 L1 21 L10 18 L19 20 L28 13 L37 16 L46 10 L55 12 L64 7 L81 4 L81 34 L1 34 Z"/><path class="gain-stroke" d="M1 21 L10 18 L19 20 L28 13 L37 16 L46 10 L55 12 L64 7 L81 4" fill="none" stroke-width="2.5"/></svg></div>
+        <div class="price"><strong>1,035.00</strong></div>
+        <div class="pill gain"><strong>+15.00</strong><span>+1.47%</span></div>
+      </div>
+      <div class="row">
+        <div class="stock"><strong>鴻海</strong><span>2317</span></div>
+        <div class="spark"><svg viewBox="0 0 82 34"><path class="fill-gain" d="M1 33 L1 22 L12 24 L24 19 L36 18 L48 13 L60 15 L72 10 L81 8 L81 34 L1 34 Z"/><path class="gain-stroke" d="M1 22 L12 24 L24 19 L36 18 L48 13 L60 15 L72 10 L81 8" fill="none" stroke-width="2.5"/></svg></div>
+        <div class="price"><strong>212.50</strong></div>
+        <div class="pill gain"><strong>+4.00</strong><span>+1.92%</span></div>
+      </div>
+      <div class="row">
+        <div class="stock"><strong>元大台灣50</strong><span>0050</span></div>
+        <div class="spark"><svg viewBox="0 0 82 34"><path class="fill-gain" d="M1 32 L1 26 L12 22 L24 20 L36 17 L48 14 L60 16 L72 12 L81 10 L81 34 L1 34 Z"/><path class="gain-stroke" d="M1 26 L12 22 L24 20 L36 17 L48 14 L60 16 L72 12 L81 10" fill="none" stroke-width="2.5"/></svg></div>
+        <div class="price"><strong>196.80</strong></div>
+        <div class="pill gain"><strong>+0.85</strong><span>+0.43%</span></div>
+      </div>
+      <div class="row">
+        <div class="stock"><strong>聯發科</strong><span>2454</span></div>
+        <div class="spark"><svg viewBox="0 0 82 34"><path class="fill-loss" d="M1 34 L1 11 L13 14 L25 12 L37 17 L49 19 L61 21 L73 24 L81 28 L81 34 Z"/><path class="loss-stroke" d="M1 11 L13 14 L25 12 L37 17 L49 19 L61 21 L73 24 L81 28" fill="none" stroke-width="2.5"/></svg></div>
+        <div class="price"><strong class="down">1,375.00</strong></div>
+        <div class="pill loss"><strong>-20.00</strong><span>-1.43%</span></div>
+      </div>
+      <div class="row">
+        <div class="stock"><strong>中華電</strong><span>2412</span></div>
+        <div class="spark"><svg viewBox="0 0 82 34"><path class="fill-loss" d="M1 34 L1 18 L15 17 L29 20 L43 18 L57 19 L69 22 L81 21 L81 34 Z"/><path class="loss-stroke" d="M1 18 L15 17 L29 20 L43 18 L57 19 L69 22 L81 21" fill="none" stroke-width="2.5"/></svg></div>
+        <div class="price"><strong class="down">126.00</strong></div>
+        <div class="pill loss"><strong>-0.50</strong><span>-0.40%</span></div>
+      </div>
+      <div class="row">
+        <div class="stock"><strong>玉山金</strong><span>2884</span></div>
+        <div class="spark"><svg viewBox="0 0 82 34"><path class="fill-gain" d="M1 32 L1 24 L12 22 L24 25 L36 20 L48 18 L60 17 L72 15 L81 13 L81 34 L1 34 Z"/><path class="gain-stroke" d="M1 24 L12 22 L24 25 L36 20 L48 18 L60 17 L72 15 L81 13" fill="none" stroke-width="2.5"/></svg></div>
+        <div class="price"><strong>31.20</strong></div>
+        <div class="pill gain"><strong>+0.15</strong><span>+0.48%</span></div>
+      </div>
+    </section>
+
+    <div class="actions">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>新增自選</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>編輯自選</span>
+    </div>
+  </main>
+
+  <nav class="nav" aria-label="主要導覽">
+    <a class="active" href="01-watchlist.html"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.7-9.4-9.1C.5 8 2.7 4 6.8 4c2 0 3.8 1 5.2 2.8C13.4 5 15.2 4 17.2 4c4.1 0 6.3 4 4.2 7.9C19 16.3 12 21 12 21Z"/></svg><span>自選</span></a>
+    <a href="02-market.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><span>市場</span></a>
+    <a href="03-account.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="4"/></svg><span>帳戶</span></a>
+  </nav>
+</body>
+</html>
