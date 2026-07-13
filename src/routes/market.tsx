@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
@@ -20,45 +20,13 @@ const EMPTY_INDEXES: MarketIndex[] = [
 	change: "--",
 	percent: "--",
 	direction: "neutral",
-	date: null,
-	isStale: false,
 }));
 
-function IndexCard({
-	index,
-	activeWarning,
-	onToggleWarning,
-}: {
-	index: MarketIndex;
-	activeWarning: string | null;
-	onToggleWarning: (name: string) => void;
-}) {
+function IndexCard({ index }: { index: MarketIndex }) {
 	return (
 		<article className={`index-card ${index.compact ? "compact" : ""}`}>
 			<div className="index-card__header">
 				<span>{index.name}</span>
-				{index.isStale && index.date && (
-					<div className="stale-warning market-stale-warning">
-						<button
-							type="button"
-							className="stale-warning__button"
-							aria-expanded={activeWarning === index.name}
-							aria-controls={`market-stale-${index.name}`}
-							aria-label={`${index.name}資料日期為 ${index.date}，可能過時`}
-							onClick={() => onToggleWarning(index.name)}
-						>
-							<AlertTriangle />
-						</button>
-						{activeWarning === index.name && (
-							<output
-								className="stale-warning__message"
-								id={`market-stale-${index.name}`}
-							>
-								該資料為 {index.date} 的資料，可能過時
-							</output>
-						)}
-					</div>
-				)}
 			</div>
 			<strong className={index.direction}>{index.value}</strong>
 			<span className={`index-delta ${index.direction}`}>
@@ -73,7 +41,6 @@ function MarketPage() {
 	const [indexes, setIndexes] = useState(EMPTY_INDEXES);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState(false);
-	const [activeWarning, setActiveWarning] = useState<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -115,26 +82,12 @@ function MarketPage() {
 				>
 					<div className="index-row primary">
 						{indexes.slice(0, 2).map((index) => (
-							<IndexCard
-								key={index.name}
-								index={index}
-								activeWarning={activeWarning}
-								onToggleWarning={(name) =>
-									setActiveWarning((active) => (active === name ? null : name))
-								}
-							/>
+							<IndexCard key={index.name} index={index} />
 						))}
 					</div>
 					<div className="index-row secondary">
 						{indexes.slice(2).map((index) => (
-							<IndexCard
-								key={index.name}
-								index={index}
-								activeWarning={activeWarning}
-								onToggleWarning={(name) =>
-									setActiveWarning((active) => (active === name ? null : name))
-								}
-							/>
+							<IndexCard key={index.name} index={index} />
 						))}
 					</div>
 				</section>

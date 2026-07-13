@@ -41,16 +41,13 @@ describe("market indexes", () => {
 			{ Date: "115/07/13", Close: "276.84", Change: "-0.50" },
 		];
 		const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input) => {
-			const payload = String(input).includes("market_index")
+			const payload = String(input).includes("market=OTC")
 				? otcPayload
 				: tsePayload;
 			return new Response(JSON.stringify(payload), { status: 200 });
 		});
 
-		const indexes = await downloadMarketIndexes(
-			fetcher,
-			new Date("2026-07-14T04:00:00.000Z"),
-		);
+		const indexes = await downloadMarketIndexes(fetcher);
 
 		expect(fetcher).toHaveBeenCalledWith(TSE_MARKET_INDEX_API_URL, {
 			cache: "no-store",
@@ -72,14 +69,11 @@ describe("market indexes", () => {
 				value: "23,184.62",
 				change: "+111.04",
 				percent: "+0.48%",
-				isStale: false,
 			}),
 		);
 		expect(indexes[1]).toEqual(
 			expect.objectContaining({
 				value: "276.84",
-				date: "07/13",
-				isStale: true,
 			}),
 		);
 	});

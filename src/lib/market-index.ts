@@ -11,8 +11,6 @@ export type MarketIndex = {
 	percent: string;
 	direction: "gain" | "loss" | "neutral";
 	compact: boolean;
-	date: string | null;
-	isStale: boolean;
 };
 
 type CalendarDate = {
@@ -138,33 +136,8 @@ function parseDate(value: unknown): CalendarDate | null {
 	return isValidDate(date) ? date : null;
 }
 
-function getTaipeiDate(now: Date): CalendarDate {
-	const parts = new Intl.DateTimeFormat("en-CA", {
-		timeZone: "Asia/Taipei",
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	}).formatToParts(now);
-	const part = (type: Intl.DateTimeFormatPartTypes) =>
-		Number(parts.find((item) => item.type === type)?.value);
-	return { year: part("year"), month: part("month"), day: part("day") };
-}
-
 function getDateKey(date: CalendarDate | null) {
 	return date ? date.year * 10000 + date.month * 100 + date.day : -1;
-}
-
-function formatMonthDay(date: CalendarDate | null) {
-	if (!date) return null;
-	return `${String(date.month).padStart(2, "0")}/${String(date.day).padStart(2, "0")}`;
-}
-
-function isSameDate(first: CalendarDate | null, second: CalendarDate) {
-	return (
-		first?.year === second.year &&
-		first.month === second.month &&
-		first.day === second.day
-	);
 }
 
 function formatValue(value: number | null) {
@@ -184,7 +157,6 @@ function toMarketIndex(
 	name: string,
 	record: UnknownRecord | undefined,
 	compact: boolean,
-	today: CalendarDate,
 ): MarketIndex {
 	const value = parseNumber(firstValue(record, VALUE_FIELDS));
 	const change = getSignedChange(record);
@@ -196,8 +168,6 @@ function toMarketIndex(
 		(previousValue !== null && previousValue !== 0 && change !== null
 			? (change / previousValue) * 100
 			: null);
-	const date = parseDate(firstValue(record, DATE_FIELDS));
-
 	return {
 		name,
 		value: formatValue(value),
@@ -210,8 +180,6 @@ function toMarketIndex(
 					? "gain"
 					: "loss",
 		compact,
-		date: formatMonthDay(date),
-		isStale: date !== null && !isSameDate(date, today),
 	};
 }
 
@@ -228,7 +196,6 @@ async function downloadJson(fetcher: Fetcher, url: string) {
 
 export async function downloadMarketIndexes(
 	fetcher: Fetcher = fetch,
-	now = new Date(),
 ): Promise<MarketIndex[]> {
 	const [tsePayload, otcPayload] = await Promise.all([
 		downloadJson(fetcher, TSE_MARKET_INDEX_API_URL),
@@ -236,7 +203,6 @@ export async function downloadMarketIndexes(
 	]);
 	const tseRecords = extractRecords(tsePayload);
 	const otcRecords = extractRecords(otcPayload);
-	const today = getTaipeiDate(now);
 	const tseIndexes = TSE_INDEXES.map(({ name, sourceName, compact }) =>
 		toMarketIndex(
 			name,
@@ -245,7 +211,6 @@ export async function downloadMarketIndexes(
 					String(firstValue(record, INDEX_NAME_FIELDS)) === sourceName,
 			),
 			compact,
-			today,
 		),
 	);
 	const latestOtcRecord = otcRecords.reduce<UnknownRecord | undefined>(
@@ -259,7 +224,7 @@ export async function downloadMarketIndexes(
 
 	return [
 		tseIndexes[0],
-		toMarketIndex("櫃買指數", latestOtcRecord, false, today),
+		toMarketIndex("櫃買指數", latestOtcRecord, false),
 		...tseIndexes.slice(1),
 	];
 }

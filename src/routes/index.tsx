@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowUpDown, Pencil, Plus, Search } from "lucide-react";
+import { ArrowUpDown, Pencil, Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
@@ -10,9 +10,6 @@ export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
 	const [stocks, setStocks] = useState(() => getWatchlistStocks());
-	const [activeStaleTicker, setActiveStaleTicker] = useState<string | null>(
-		null,
-	);
 
 	useEffect(() => {
 		const refreshStocks = () => setStocks(getWatchlistStocks());
@@ -53,38 +50,10 @@ function Home() {
 					{visibleStocks.map((stock) => (
 						<div className="watchlist-row" key={stock.ticker}>
 							<div className="security-name">
-								<div className="security-name__primary">
-									{stock.isStale && stock.staleDate && (
-										<div className="stale-warning">
-											<button
-												type="button"
-												className="stale-warning__button"
-												aria-expanded={activeStaleTicker === stock.ticker}
-												aria-controls={`stale-message-${stock.ticker}`}
-												aria-label={`資料日期為 ${stock.staleDate}，可能過時`}
-												onClick={() =>
-													setActiveStaleTicker((activeTicker) =>
-														activeTicker === stock.ticker ? null : stock.ticker,
-													)
-												}
-											>
-												<AlertTriangle />
-											</button>
-											{activeStaleTicker === stock.ticker && (
-												<output
-													className="stale-warning__message"
-													id={`stale-message-${stock.ticker}`}
-												>
-													該資料為 {stock.staleDate} 的資料，可能過時
-												</output>
-											)}
-										</div>
-									)}
-									<Link to="/stocks/$ticker" params={{ ticker: stock.ticker }}>
-										<strong>{stock.name}</strong>
-										<small>{stock.ticker}</small>
-									</Link>
-								</div>
+								<Link to="/stocks/$ticker" params={{ ticker: stock.ticker }}>
+									<strong>{stock.name}</strong>
+									<small>{stock.ticker}</small>
+								</Link>
 							</div>
 							<Link
 								className={`stock-price ${stock.direction}`}

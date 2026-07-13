@@ -70,9 +70,7 @@ describe("watchlist storage", () => {
 			"prices:OTC": "[]",
 		});
 
-		expect(
-			getWatchlistStocks(storage, new Date("2025-07-04T04:00:00Z")),
-		).toEqual([
+		expect(getWatchlistStocks(storage)).toEqual([
 			expect.objectContaining({
 				ticker: "2330",
 				name: "台積電",
@@ -111,15 +109,11 @@ describe("watchlist storage", () => {
 			}),
 		});
 
-		expect(
-			getWatchlistStocks(storage, new Date("2025-07-05T04:00:00Z"))[0],
-		).toEqual(
+		expect(getWatchlistStocks(storage)[0]).toEqual(
 			expect.objectContaining({
 				ticker: "6488",
 				name: "環球晶",
 				date: "2025/07/04",
-				isStale: true,
-				staleDate: "07/04",
 				price: "472.50",
 				change: "-3.50",
 				percent: "-0.74%",

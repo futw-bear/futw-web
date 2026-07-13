@@ -22,8 +22,6 @@ export type WatchlistStock = {
 	ticker: string;
 	name: string;
 	date: string;
-	isStale: boolean;
-	staleDate: string | null;
 	price: string;
 	change: string;
 	percent: string;
@@ -211,31 +209,6 @@ function formatDataDate(date: CalendarDate | null) {
 	return `${date.year}/${String(date.month).padStart(2, "0")}/${String(date.day).padStart(2, "0")}`;
 }
 
-function formatMonthDay(date: CalendarDate | null) {
-	if (!date) return null;
-	return `${String(date.month).padStart(2, "0")}/${String(date.day).padStart(2, "0")}`;
-}
-
-function getTaipeiDate(now: Date): CalendarDate {
-	const parts = new Intl.DateTimeFormat("en-CA", {
-		timeZone: "Asia/Taipei",
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	}).formatToParts(now);
-	const part = (type: Intl.DateTimeFormatPartTypes) =>
-		Number(parts.find((item) => item.type === type)?.value);
-	return { year: part("year"), month: part("month"), day: part("day") };
-}
-
-function isSameDate(first: CalendarDate | null, second: CalendarDate) {
-	return (
-		first?.year === second.year &&
-		first.month === second.month &&
-		first.day === second.day
-	);
-}
-
 function getKind(ticker: string, security: UnknownRecord | undefined) {
 	const type = String(firstValue(security, TYPE_FIELDS) ?? "").toUpperCase();
 	return type.includes("ETF") || ticker.startsWith("00") ? "ETF" : "證券";
@@ -265,7 +238,6 @@ export function getStoredWatchlist(storage: StorageLike = window.localStorage) {
 
 export function getWatchlistStocks(
 	storage: StorageLike = window.localStorage,
-	now = new Date(),
 ): WatchlistStock[] {
 	const tickers = getStoredWatchlist(storage);
 	const securities = indexRecords(
@@ -280,8 +252,6 @@ export function getWatchlistStocks(
 		parseStoredValue(storage, OTC_PRICES_STORAGE_KEY) ??
 			parseStoredValue(storage, LEGACY_OTC_PRICES_STORAGE_KEY),
 	);
-	const today = getTaipeiDate(now);
-
 	return tickers.map((ticker) => {
 		const security = securities.get(ticker);
 		const tsePriceRecord = tsePrices.get(ticker);
@@ -312,8 +282,6 @@ export function getWatchlistStocks(
 			ticker,
 			name: typeof name === "string" && name.trim() ? name.trim() : ticker,
 			date: formatDataDate(dataDate),
-			isStale: dataDate !== null && !isSameDate(dataDate, today),
-			staleDate: formatMonthDay(dataDate),
 			price: formatPrice(price),
 			change: formatSigned(change),
 			percent: formatSigned(percent, "%"),
