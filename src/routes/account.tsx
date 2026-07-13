@@ -76,29 +76,6 @@ function AccountPage() {
 						</span>
 					</Link>
 				</section>
-
-				<section className="account-section" aria-label="提醒">
-					<div className="section-heading">
-						<h2>提醒</h2>
-						<button type="button">新增</button>
-					</div>
-					<div className="reminder-list">
-						<article className="reminder-card">
-							<span>
-								<strong>台積電接近 1,050</strong>
-								<small>到價時推播一次</small>
-							</span>
-							<b>價格</b>
-						</article>
-						<article className="reminder-card">
-							<span>
-								<strong>0050 每月扣款日</strong>
-								<small>下次：7 月 8 日</small>
-							</span>
-							<b>定期</b>
-						</article>
-					</div>
-				</section>
 			</main>
 			<MainNavigation active="account" />
 		</>
