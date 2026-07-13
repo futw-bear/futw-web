@@ -1,4 +1,7 @@
-const SECURITIES_API_URL = "/api/pub/securities";
+const SECURITIES_API_URLS = [
+	"/api/pub/securities?type=2",
+	"/api/pub/securities?type=4",
+];
 const SECURITIES_CACHE = "futw-securities-v1";
 const SECURITIES_CACHE_KEY = "/__futw/securities";
 const SECURITIES_METADATA_KEY = "/__futw/securities-metadata";
@@ -73,18 +76,27 @@ async function notifyClients(message) {
 }
 
 async function downloadAndStoreSecurities() {
-	const response = await fetch(SECURITIES_API_URL, {
-		cache: "no-store",
-		headers: { accept: "application/json" },
-	});
-	if (!response.ok) {
-		throw new Error(`Unable to download securities: ${response.status}`);
-	}
-
-	const securities = await response.json();
+	const securities = await Promise.all(
+		SECURITIES_API_URLS.map(async (url) => {
+			const response = await fetch(url, {
+				cache: "no-store",
+				headers: { accept: "application/json" },
+			});
+			if (!response.ok) {
+				throw new Error(`Unable to download securities: ${response.status}`);
+			}
+			const payload = await response.json();
+			return Array.isArray(payload) ? payload : [];
+		}),
+	);
 	const syncedAt = new Date().toISOString();
-	await storeSnapshot(securities, syncedAt);
-	await notifyClients({ type: "SECURITIES_UPDATED", securities, syncedAt });
+	const mergedSecurities = securities.flat();
+	await storeSnapshot(mergedSecurities, syncedAt);
+	await notifyClients({
+		type: "SECURITIES_UPDATED",
+		securities: mergedSecurities,
+		syncedAt,
+	});
 }
 
 async function refreshSecuritiesIfDue() {

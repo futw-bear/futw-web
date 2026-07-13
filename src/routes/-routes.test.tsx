@@ -5,7 +5,7 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { routeTree } from "../routeTree.gen";
@@ -13,7 +13,7 @@ import { routeTree } from "../routeTree.gen";
 function renderRoute(path: string) {
 	const history = createMemoryHistory({ initialEntries: [path] });
 	const router = createRouter({ routeTree, history });
-	render(<RouterProvider router={router} />);
+	return render(<RouterProvider router={router} />);
 }
 
 beforeEach(() => {
@@ -27,6 +27,7 @@ beforeEach(() => {
 			{ code: "2454", name: "聯發科", security_type: "Stock" },
 			{ code: "2412", name: "中華電", security_type: "Stock" },
 			{ code: "2884", name: "玉山金", security_type: "Stock" },
+			{ code: "6233", name: "旺玖", security_type: "Stock" },
 		]),
 	);
 	localStorage.setItem(
@@ -74,5 +75,26 @@ describe("application routes", () => {
 		expect(
 			screen.getByRole("link", { name: "檢視明細" }).getAttribute("href"),
 		).toBe("/holdings");
+	});
+
+	it("searches stored securities by partial ticker and name", async () => {
+		const { container } = renderRoute("/search");
+		await screen.findByRole("searchbox", { name: "搜尋股票或 ETF" });
+		const searchPage = container.querySelector(".search-page");
+		expect(searchPage).toBeTruthy();
+		const search = within(searchPage as HTMLElement);
+
+		const searchInput = await search.findByRole("searchbox", {
+			name: "搜尋股票或 ETF",
+		});
+		fireEvent.change(searchInput, { target: { value: "233" } });
+
+		expect(await search.findByText("旺玖")).toBeTruthy();
+		expect(search.getByText("台積電")).toBeTruthy();
+		expect(search.queryByText("上市股熱度榜")).toBeNull();
+
+		fireEvent.change(searchInput, { target: { value: "積電" } });
+		expect(await search.findByText("台積電")).toBeTruthy();
+		expect(search.queryByText("旺玖")).toBeNull();
 	});
 });

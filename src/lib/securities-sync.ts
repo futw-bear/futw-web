@@ -6,7 +6,10 @@ import {
 } from "./daily-sync";
 import { notifyMarketDataUpdated } from "./storage-events";
 
-export const SECURITIES_API_URL = "/api/pub/securities";
+export const SECURITIES_API_URLS = [
+	"/api/pub/securities?type=2",
+	"/api/pub/securities?type=4",
+] as const;
 export const SECURITIES_STORAGE_KEY = "securities";
 export const SECURITIES_SYNCED_AT_KEY = "securities:last-synced-at";
 export const SECURITIES_PERIODIC_SYNC_TAG = "refresh-securities";
@@ -45,17 +48,22 @@ export async function downloadSecurities(
 	fetcher: Fetcher = fetch,
 	now = new Date(),
 ): Promise<SecuritiesSnapshot> {
-	const response = await fetcher(SECURITIES_API_URL, {
-		cache: "no-store",
-		headers: { accept: "application/json" },
-	});
-
-	if (!response.ok) {
-		throw new Error(`Unable to download securities: ${response.status}`);
-	}
+	const securities = await Promise.all(
+		SECURITIES_API_URLS.map(async (url) => {
+			const response = await fetcher(url, {
+				cache: "no-store",
+				headers: { accept: "application/json" },
+			});
+			if (!response.ok) {
+				throw new Error(`Unable to download securities: ${response.status}`);
+			}
+			const payload: unknown = await response.json();
+			return Array.isArray(payload) ? payload : [];
+		}),
+	);
 
 	return {
-		securities: await response.json(),
+		securities: securities.flat(),
 		syncedAt: now.toISOString(),
 	};
 }
