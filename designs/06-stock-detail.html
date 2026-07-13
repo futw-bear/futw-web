@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="zh-Hant"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>台積電 詳情</title>
+  <style>
+    :root {
+      --bg: oklch(97% 0.018 70);
+      --surface: oklch(99% 0.008 70);
+      --fg: oklch(22% 0.02 50);
+      --muted: oklch(50% 0.018 50);
+      --border: oklch(90% 0.014 70);
+      --accent: oklch(64% 0.13 28);
+      --font-display: 'Tiempos Headline', 'Newsreader', 'Iowan Old Style', Georgia, serif;
+      --font-body: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --gain: oklch(59% 0.21 25);
+      --loss: oklch(55% 0.16 150);
+      --soft-gain: oklch(96% 0.04 25);
+      --soft-loss: oklch(95% 0.04 150);
+      --chart: oklch(63% 0.17 245);
+      --avg: oklch(70% 0.12 55);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 15px;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 16px 16px 88px;
+      background:
+        linear-gradient(180deg, oklch(99% 0.008 70), var(--bg) 38%),
+        var(--bg);
+    }
+
+    .topbar, .tool-actions, .tabs, .quote-row, .metric-grid, .range-tabs, .bottom-bar {
+      display: flex;
+      align-items: center;
+    }
+
+    .topbar {
+      justify-content: space-between;
+      margin-block-end: 14px;
+    }
+
+    .icon-button {
+      inline-size: 38px;
+      block-size: 38px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      color: var(--fg);
+      text-decoration: none;
+    }
+
+    .tool-actions {
+      gap: 9px;
+    }
+
+    .footer-favorite {
+      inline-size: 44px;
+      block-size: 44px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 14px;
+      background: oklch(98% 0.018 18);
+      color: oklch(65% 0.2 18);
+      flex: 0 0 auto;
+    }
+
+    .footer-favorite svg {
+      inline-size: 20px;
+      block-size: 20px;
+    }
+
+    .tabs {
+      gap: 22px;
+      overflow: auto;
+      padding-block: 2px 14px;
+      scrollbar-width: none;
+    }
+
+    .tab {
+      position: relative;
+      flex: 0 0 auto;
+      color: var(--muted);
+      font-size: 17px;
+      font-weight: 740;
+      text-decoration: none;
+    }
+
+    .tab.active {
+      color: var(--fg);
+    }
+
+    .tab.active::after {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      inset-block-end: -7px;
+      block-size: 4px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .security-head {
+      display: grid;
+      gap: 8px;
+      padding-block: 10px 8px;
+    }
+
+    .name-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-inline-size: 0;
+    }
+
+    .name-line h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.1;
+      font-weight: 820;
+      letter-spacing: -0.01em;
+      min-inline-size: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ticker {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 720;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quote-row {
+      justify-content: space-between;
+      gap: 12px;
+      margin-block: 6px 12px;
+    }
+
+    .quote {
+      display: grid;
+      gap: 4px;
+      color: var(--gain);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quote strong {
+      font-size: 42px;
+      line-height: 0.95;
+      font-weight: 820;
+      letter-spacing: -0.02em;
+    }
+
+    .quote span {
+      font-size: 18px;
+      font-weight: 760;
+    }
+
+    .quote-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(58px, 1fr));
+      gap: 7px 10px;
+      min-inline-size: 146px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quote-metric {
+      display: grid;
+      gap: 2px;
+      text-align: start;
+    }
+
+    .quote-metric span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+    }
+
+    .quote-metric strong {
+      font-size: 14px;
+      line-height: 1.1;
+      font-weight: 800;
+    }
+
+    .metric-grid {
+      align-items: stretch;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-block-end: 10px;
+    }
+
+    .metric {
+      display: grid;
+      gap: 4px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+    }
+
+    .metric strong {
+      font-size: 15px;
+      line-height: 1.1;
+      font-weight: 800;
+    }
+
+    .detail-grid {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .market-strip {
+      display: grid;
+      gap: 8px;
+      padding-block: 8px 10px;
+      border-block: 1px solid var(--border);
+      margin-block-end: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .strip-row {
+      display: grid;
+      grid-template-columns: 44px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    .strip-row strong {
+      color: var(--gain);
+      font-size: 17px;
+    }
+
+    .strip-row span:last-child {
+      color: var(--gain);
+      font-weight: 760;
+    }
+
+    .news {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 0 12px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+      border-block-end: 1px solid var(--border);
+      margin-block-end: 12px;
+    }
+
+    .news svg {
+      color: var(--gain);
+      flex: 0 0 auto;
+    }
+
+    .range-tabs {
+      gap: 10px;
+      overflow: auto;
+      padding-block-end: 10px;
+      scrollbar-width: none;
+    }
+
+    .range-tabs button {
+      flex: 0 0 auto;
+      min-block-size: 34px;
+      border: 0;
+      border-radius: 11px;
+      padding: 0 12px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 15px;
+      font-weight: 760;
+    }
+
+    .range-tabs button.active {
+      background: oklch(92% 0.02 70);
+      color: var(--fg);
+    }
+
+    .range-tabs select {
+      flex: 0 0 auto;
+      min-block-size: 34px;
+      border: 0;
+      border-radius: 11px;
+      padding: 0 28px 0 12px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 15px;
+      font-weight: 760;
+    }
+
+    .chart-card {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--surface);
+      overflow: hidden;
+      margin-block-end: 12px;
+    }
+
+    .chart {
+      display: block;
+      inline-size: 100%;
+      block-size: auto;
+    }
+
+    .volume {
+      display: grid;
+      gap: 7px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--surface);
+      margin-block-end: 12px;
+    }
+
+    .volume-head {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .volume-bars {
+      display: grid;
+      grid-template-columns: repeat(18, 1fr);
+      align-items: end;
+      gap: 4px;
+      block-size: 72px;
+      border-block-end: 1px solid var(--border);
+    }
+
+    .volume-bars span {
+      min-block-size: 5px;
+      border-radius: 4px 4px 0 0;
+      background: var(--gain);
+      opacity: 0.78;
+    }
+
+    .volume-bars span.loss {
+      background: var(--loss);
+    }
+
+    .bottom-bar {
+      position: fixed;
+      inset-inline: 0;
+      inset-block-end: 0;
+      justify-content: space-between;
+      gap: 10px;
+      min-block-size: 72px;
+      padding: 10px 16px 12px;
+      background: oklch(99% 0.006 70 / 0.95);
+      backdrop-filter: blur(18px);
+      border-block-start: 1px solid var(--border);
+      color: var(--fg);
+    }
+
+    .trade-button {
+      min-inline-size: 104px;
+      min-block-size: 44px;
+      border: 0;
+      border-radius: 14px;
+      background: var(--accent);
+      color: white;
+      font: inherit;
+      font-weight: 820;
+      letter-spacing: 0.02em;
+    }
+
+    svg { inline-size: 20px; block-size: 20px; }
+  </style>
+</head>
+<body>
+  <main class="app" data-od-id="stock-detail-screen">
+    <header class="topbar" data-od-id="stock-detail-topbar">
+      <a class="icon-button" href="01-watchlist.html" aria-label="返回自選" data-od-id="stock-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="m15 18-6-6 6-6"></path></svg>
+      </a>
+      <div class="tool-actions">
+        <button class="icon-button" type="button" aria-label="搜尋">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="m16.5 16.5 4 4"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="個股資訊分頁" data-od-id="stock-detail-tabs">
+      <a class="tab active" href="#">圖表</a>
+      
+      
+      
+      
+      <a class="tab" href="#">即時交易</a>
+    </nav>
+
+    <section class="security-head" aria-label="股票報價" data-od-id="stock-quote-summary">
+      <div class="name-line">
+        <h1>台積電</h1>
+        <span class="ticker">2330</span>
+      </div>
+      <div class="meta">收盤價 07/04 13:30:00（台北）</div>
+      <div class="quote-row">
+        <div class="quote">
+          <strong>1,035.00</strong>
+          <span>+15.00 +1.47%</span>
+        </div>
+        <div class="quote-metrics" aria-label="主要行情">
+          <div class="quote-metric"><span>最高</span><strong class="gain">1,040.00</strong></div>
+          <div class="quote-metric"><span>開盤</span><strong>1,025.00</strong></div>
+          <div class="quote-metric"><span>最低</span><strong class="loss">1,020.00</strong></div>
+          <div class="quote-metric"><span>昨收</span><strong>1,020.00</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="metric-grid" aria-label="行情指標" data-od-id="stock-metrics">
+      <div class="metric"><span>成交額</span><strong>486.2億</strong></div>
+      <div class="metric"><span>本益比 PE</span><strong>25.8</strong></div>
+      <div class="metric"><span>股價淨值比 PB</span><strong>26.84</strong></div>
+      <div class="detail-grid" aria-label="更多行情指標" data-od-id="stock-more-metrics">
+        <div class="metric"><span>成交量</span><strong>46,872張</strong></div>
+        <div class="metric"><span>52 周最高</span><strong>1,100.00</strong></div>
+        <div class="metric"><span>52 周最低</span><strong>762.00</strong></div>
+      </div>
+    </section>
+
+    
+
+    
+
+    <nav class="range-tabs" aria-label="圖表區間" data-od-id="chart-range-tabs">
+      
+      <button class="active" type="button">5日</button>
+      <select aria-label="選擇分鐘 K 線" data-od-id="minute-k-menu">
+        <option value="5m" selected="">5 分K</option>
+        <option value="10m">10 分K</option>
+        <option value="15m">15 分K</option>
+        <option value="30m">30 分K</option>
+        <option value="60m">60 分K</option>
+      </select>
+      
+      <button type="button">日K</button>
+      <button type="button">週K</button>
+      <button type="button">月K</button>
+    </nav>
+
+    <section class="chart-card" aria-label="五日走勢圖" data-od-id="stock-price-chart">
+      <svg class="chart" viewBox="0 0 358 252" role="img" aria-label="台積電五日股價走勢">
+        <defs>
+          <linearGradient id="priceFill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="oklch(63% 0.17 245 / 0.26)"></stop>
+            <stop offset="100%" stop-color="oklch(63% 0.17 245 / 0.05)"></stop>
+          </linearGradient>
+        </defs>
+        <rect width="358" height="252" fill="oklch(99% 0.006 70)"></rect>
+        <g stroke="oklch(90% 0.014 70)" stroke-width="1">
+          <path d="M44 22v184M111 22v184M178 22v184M245 22v184M312 22v184"></path>
+          <path d="M34 36h300M34 82h300M34 128h300M34 174h300M34 206h300"></path>
+        </g>
+        <g fill="oklch(63% 0.17 245)" font-size="12" font-family="Söhne, -apple-system, BlinkMacSystemFont, system-ui, sans-serif" font-weight="700">
+          <text x="10" y="40">1,050</text>
+          <text x="10" y="86">1,035</text>
+          <text x="10" y="132">1,020</text>
+          <text x="10" y="178">1,005</text>
+        </g>
+        <path d="M35 192 C52 178 57 160 69 170 C82 184 92 156 104 146 C119 134 134 140 145 122 C161 94 174 102 188 84 C205 60 221 68 238 70 C254 72 266 54 280 72 C292 88 301 112 314 132 C325 149 333 128 342 116 L342 206 L35 206 Z" fill="url(#priceFill)"></path>
+        <path d="M35 192 C52 178 57 160 69 170 C82 184 92 156 104 146 C119 134 134 140 145 122 C161 94 174 102 188 84 C205 60 221 68 238 70 C254 72 266 54 280 72 C292 88 301 112 314 132 C325 149 333 128 342 116" fill="none" stroke="var(--chart)" stroke-width="3" stroke-linecap="round"></path>
+        <path d="M35 184 C72 176 94 162 120 150 C154 136 179 122 208 100 C238 82 268 88 300 104 C318 114 333 112 342 108" fill="none" stroke="var(--avg)" stroke-width="2" stroke-linecap="round"></path>
+        <path d="M34 99h300" stroke="var(--gain)" stroke-dasharray="5 6" stroke-width="1.5"></path>
+        <g fill="oklch(50% 0.018 50)" font-size="12" font-family="Söhne, -apple-system, BlinkMacSystemFont, system-ui, sans-serif">
+          <text x="35" y="232">06/28</text>
+          <text x="113" y="232">07/01</text>
+          <text x="194" y="232">07/03</text>
+          <text x="292" y="232">07/04</text>
+        </g>
+      </svg>
+    </section>
+
+    
+  </main>
+
+  <footer class="bottom-bar" data-od-id="stock-detail-footer">
+    <button class="footer-favorite" type="button" aria-label="已加入自選列表">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.7-9.4-9.1C.5 8 2.7 4 6.8 4c2 0 3.8 1 5.2 2.8C13.4 5 15.2 4 17.2 4c4.1 0 6.3 4 4.2 7.9C19 16.3 12 21 12 21Z"></path></svg>
+    </button>
+    <button class="trade-button" type="button">查看交易</button>
+  </footer>
+
+
+
+</body></html>

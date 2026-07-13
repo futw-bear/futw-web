@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>帳戶</title>
+  <style>
+    :root {
+      --bg: oklch(97% 0.018 70);
+      --surface: oklch(99% 0.008 70);
+      --fg: oklch(22% 0.02 50);
+      --muted: oklch(50% 0.018 50);
+      --border: oklch(90% 0.014 70);
+      --accent: oklch(64% 0.13 28);
+      --font-display: 'Tiempos Headline', 'Newsreader', 'Iowan Old Style', Georgia, serif;
+      --font-body: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --gain: oklch(59% 0.21 25);
+      --loss: oklch(55% 0.16 150);
+      --soft-gain: oklch(96% 0.04 25);
+      --soft-loss: oklch(95% 0.04 150);
+      --warm: oklch(94% 0.05 55);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 15px;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 18px 16px 92px;
+      background: linear-gradient(180deg, oklch(99% 0.008 70), var(--bg) 36%);
+    }
+
+    .topbar, .nav, .section-head, .reminder, .allocation {
+      display: flex;
+      align-items: center;
+    }
+
+    .topbar {
+      justify-content: space-between;
+      gap: 16px;
+      margin-block-end: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-inline-size: 0;
+    }
+
+    .mark {
+      inline-size: 34px;
+      block-size: 34px;
+      border-radius: 12px;
+      background:
+        linear-gradient(135deg, oklch(94% 0.012 70), oklch(99% 0.008 70));
+      border: 1px solid var(--border);
+      color: transparent;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+    }
+
+    .mark::after {
+      content: "";
+      inline-size: 14px;
+      block-size: 14px;
+      border-radius: 5px;
+      border: 1.5px dashed oklch(72% 0.018 60);
+    }
+
+    .brand-title {
+      display: grid;
+      gap: 2px;
+    }
+
+    .brand-title h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.05;
+      font-weight: 780;
+    }
+
+    .balance {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--surface);
+      margin-block-end: 14px;
+    }
+
+    .balance small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .amount {
+      font-size: 33px;
+      line-height: 1;
+      font-weight: 780;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric {
+      padding: 12px;
+      border-radius: 14px;
+      background: oklch(96% 0.022 70);
+      display: grid;
+      gap: 5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric strong {
+      font-size: 17px;
+    }
+
+    .gain { color: var(--gain); }
+    .loss { color: var(--loss); }
+
+    .section {
+      margin-block-end: 16px;
+    }
+
+    .section-head {
+      justify-content: space-between;
+      margin-block-end: 9px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.2;
+    }
+
+    .section-head a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .allocation {
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+    }
+
+    .donut {
+      inline-size: 82px;
+      block-size: 82px;
+      border-radius: 999px;
+      background: conic-gradient(var(--gain) 0 33%, var(--accent) 33% 57%, oklch(72% 0.08 80) 57% 75%, oklch(88% 0.018 70) 75% 100%);
+      position: relative;
+      flex: 0 0 auto;
+    }
+
+    .donut::after {
+      content: "";
+      position: absolute;
+      inset: 18px;
+      border-radius: 999px;
+      background: var(--surface);
+    }
+
+    .legend {
+      display: grid;
+      gap: 7px;
+      flex: 1;
+      min-inline-size: 0;
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend-stock {
+      display: grid;
+      gap: 1px;
+      min-inline-size: 0;
+    }
+
+    .legend-stock strong {
+      color: var(--accent);
+      font-size: 14px;
+      line-height: 1.05;
+      font-weight: 780;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .legend-stock span {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .legend-row > strong:last-child {
+      color: var(--fg);
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dot {
+      inline-size: 10px;
+      block-size: 10px;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .name {
+      display: grid;
+      gap: 4px;
+    }
+
+    .name strong {
+      font-size: 15px;
+    }
+
+    .name span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .reminders {
+      display: grid;
+      gap: 9px;
+    }
+
+    .reminder {
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .reminder strong {
+      font-size: 14px;
+    }
+
+    .tag {
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: var(--warm);
+      color: oklch(40% 0.06 55);
+      font-size: 12px;
+      font-weight: 720;
+      white-space: nowrap;
+    }
+
+    .nav {
+      position: fixed;
+      inset-inline: 0;
+      inset-block-end: 0;
+      block-size: 72px;
+      justify-content: space-around;
+      background: oklch(99% 0.006 70 / 0.94);
+      backdrop-filter: blur(18px);
+      border-block-start: 1px solid var(--border);
+    }
+
+    .nav a {
+      min-inline-size: 72px;
+      min-block-size: 56px;
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .nav a.active { color: var(--accent); }
+    svg { inline-size: 20px; block-size: 20px; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <div class="brand-title">
+          <h1>帳戶</h1>
+        </div>
+      </div>
+    </header>
+
+    <section class="balance" aria-label="資產摘要">
+      <div>
+        <small>總資產估值</small>
+        <div class="amount">NT$ 842,360</div>
+      </div>
+      <div class="metric-row">
+        <div class="metric"><small>今日損益</small><strong class="gain">+3,840</strong><small class="gain">+0.46%</small></div>
+        <div class="metric"><small>本月損益</small><strong class="loss">-8,120</strong><small class="loss">-0.95%</small></div>
+      </div>
+    </section>
+
+    <section class="section" aria-label="資產配置">
+      <div class="section-head"><h2>配置</h2><a href="#">檢視明細</a></div>
+      <div class="allocation">
+        <div class="donut" aria-hidden="true"></div>
+        <div class="legend">
+          <div class="legend-row"><span class="dot" style="background: var(--gain)"></span><span class="legend-stock"><strong>2330</strong><span>台積電</span></span><strong>33%</strong></div>
+          <div class="legend-row"><span class="dot"></span><span class="legend-stock"><strong>0050</strong><span>元大台灣50</span></span><strong>24%</strong></div>
+          <div class="legend-row"><span class="dot" style="background: oklch(72% 0.08 80)"></span><span class="legend-stock"><strong>2412</strong><span>中華電</span></span><strong>18%</strong></div>
+          <div class="legend-row"><span class="dot" style="background: oklch(88% 0.018 70)"></span><span class="legend-stock"><strong>其他</strong><span>其餘持股與待投入現金</span></span><strong>25%</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-label="提醒">
+      <div class="section-head"><h2>提醒</h2><a href="#">新增</a></div>
+      <div class="reminders">
+        <div class="reminder"><div class="name"><strong>台積電接近 1,050</strong><span>到價時推播一次</span></div><span class="tag">價格</span></div>
+        <div class="reminder"><div class="name"><strong>0050 每月扣款日</strong><span>下次：7 月 8 日</span></div><span class="tag">定期</span></div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="nav" aria-label="主要導覽">
+    <a href="01-watchlist.html"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.7-9.4-9.1C.5 8 2.7 4 6.8 4c2 0 3.8 1 5.2 2.8C13.4 5 15.2 4 17.2 4c4.1 0 6.3 4 4.2 7.9C19 16.3 12 21 12 21Z"/></svg><span>自選</span></a>
+    <a href="02-market.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><span>市場</span></a>
+    <a class="active" href="03-account.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="4"/></svg><span>帳戶</span></a>
+  </nav>
+</body>
+</html>

@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-Hant"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>市場</title>
+  <style>
+    :root {
+      --bg: oklch(97% 0.018 70);
+      --surface: oklch(99% 0.008 70);
+      --fg: oklch(22% 0.02 50);
+      --muted: oklch(50% 0.018 50);
+      --border: oklch(90% 0.014 70);
+      --accent: oklch(64% 0.13 28);
+      --font-display: 'Tiempos Headline', 'Newsreader', 'Iowan Old Style', Georgia, serif;
+      --font-body: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --gain: oklch(59% 0.21 25);
+      --loss: oklch(55% 0.16 150);
+      --soft-gain: oklch(96% 0.04 25);
+      --soft-loss: oklch(95% 0.04 150);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 15px;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 18px 16px 92px;
+      background: linear-gradient(180deg, oklch(99% 0.008 70), var(--bg) 34%);
+    }
+
+    .topbar, .brand, .nav {
+      display: flex;
+      align-items: center;
+    }
+
+    .topbar {
+      justify-content: space-between;
+      gap: 16px;
+      margin-block-end: 16px;
+    }
+
+    .brand {
+      gap: 10px;
+      min-inline-size: 0;
+    }
+
+    .mark {
+      inline-size: 34px;
+      block-size: 34px;
+      border-radius: 12px;
+      background:
+        linear-gradient(135deg, oklch(94% 0.012 70), oklch(99% 0.008 70));
+      border: 1px solid var(--border);
+      display: grid;
+      place-items: center;
+    }
+
+    .mark::after {
+      content: "";
+      inline-size: 14px;
+      block-size: 14px;
+      border-radius: 5px;
+      border: 1.5px dashed oklch(72% 0.018 60);
+    }
+
+    .brand-title {
+      display: grid;
+      gap: 2px;
+    }
+
+    .brand-title h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.05;
+      font-weight: 700;
+    }
+
+    .icon-button {
+      inline-size: 36px;
+      block-size: 36px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--surface);
+      color: var(--fg);
+      display: grid;
+      place-items: center;
+    }
+
+    svg { inline-size: 20px; block-size: 20px; }
+
+    .index-board {
+      display: grid;
+      gap: 10px;
+      margin-block-end: 16px;
+    }
+
+    .index-row {
+      display: grid;
+      gap: 10px;
+    }
+
+    .index-row.primary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .index-row.secondary {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .index-card {
+      min-block-size: 114px;
+      padding: 13px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      display: grid;
+      align-content: space-between;
+      gap: 7px;
+    }
+
+    .index-card.compact {
+      min-block-size: 96px;
+      padding: 11px 10px;
+      border-radius: 15px;
+    }
+
+    .index-card span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .index-card strong {
+      font-size: 20px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .index-card.compact strong {
+      font-size: 16px;
+    }
+
+    .index-card .delta {
+      display: block;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .index-card .delta.gain { color: var(--gain); }
+    .index-card .delta.loss { color: var(--loss); }
+
+    .index-card .delta strong {
+      color: inherit;
+      font-size: 16px;
+      line-height: 1;
+      font-weight: 760;
+    }
+
+    .index-card .delta span {
+      color: inherit;
+      font-size: 11px;
+      line-height: 1.1;
+      font-weight: 680;
+    }
+
+    .index-card.compact .delta {
+      display: block;
+      font-size: 12px;
+      line-height: 1;
+      font-weight: 740;
+    }
+
+    .index-card.compact .delta strong {
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .index-card.compact .delta span {
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .spark svg {
+      inline-size: 100%;
+      block-size: 30px;
+      display: block;
+    }
+
+    .index-card.compact .spark svg {
+      block-size: 22px;
+    }
+
+    .gain { color: var(--gain); }
+    .loss { color: var(--loss); }
+
+    .nav {
+      position: fixed;
+      inset-inline: 0;
+      inset-block-end: 0;
+      block-size: 72px;
+      justify-content: space-around;
+      background: oklch(99% 0.006 70 / 0.94);
+      backdrop-filter: blur(18px);
+      border-block-start: 1px solid var(--border);
+    }
+
+    .nav a {
+      min-inline-size: 72px;
+      min-block-size: 56px;
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .nav a.active { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <div class="brand-title">
+          <h1>市場</h1>
+        </div>
+      </div>
+      <button class="icon-button" aria-label="篩選">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+      </button>
+    </header>
+
+    <section class="index-board" aria-label="市場指數">
+      <div class="index-row primary">
+        <div class="index-card">
+          <span>加權指數</span>
+          <strong class="gain">23,184.62</strong>
+          <span class="delta gain">
+            <strong>+111.04<span>(+0.48%)</span></strong>
+          </span>
+          <div class="spark" aria-hidden="true">
+            <svg viewBox="0 0 148 34" preserveAspectRatio="none">
+              <path d="M0 31 L0 24 C12 21 18 24 28 19 C39 12 48 16 58 12 C73 6 84 14 98 9 C112 5 122 8 148 4 L148 34 L0 34 Z" fill="oklch(91% 0.06 25 / 0.62)"></path>
+              <path d="M0 24 C12 21 18 24 28 19 C39 12 48 16 58 12 C73 6 84 14 98 9 C112 5 122 8 148 4" fill="none" stroke="oklch(59% 0.21 25)" stroke-width="2.4"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="index-card">
+          <span>櫃買指數</span>
+          <strong class="loss">276.84</strong>
+          <span class="delta loss">
+            <strong>-0.50<span>(-0.18%)</span></strong>
+          </span>
+          <div class="spark" aria-hidden="true">
+            <svg viewBox="0 0 148 34" preserveAspectRatio="none">
+              <path d="M0 12 L0 20 C15 16 23 18 35 15 C51 12 62 18 77 15 C93 12 105 21 119 19 C130 18 139 23 148 21 L148 34 L0 34 Z" fill="oklch(90% 0.055 150 / 0.58)"></path>
+              <path d="M0 20 C15 16 23 18 35 15 C51 12 62 18 77 15 C93 12 105 21 119 19 C130 18 139 23 148 21" fill="none" stroke="oklch(55% 0.16 150)" stroke-width="2.4"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div class="index-row secondary">
+        <div class="index-card compact">
+          <span>電子指數</span>
+          <strong class="gain">1,286.70</strong>
+          <span class="delta gain">
+            <strong>+9.20<span>(+0.72%)</span></strong>
+          </span>
+          <div class="spark" aria-hidden="true">
+            <svg viewBox="0 0 92 24" preserveAspectRatio="none">
+              <path d="M0 18 C8 15 15 17 22 12 C34 5 43 12 54 8 C66 4 76 7 92 3" fill="none" stroke="oklch(59% 0.21 25)" stroke-width="2.2"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="index-card compact">
+          <span>金融指數</span>
+          <strong class="gain">2,148.30</strong>
+          <span class="delta gain">
+            <strong>+4.50<span>(+0.21%)</span></strong>
+          </span>
+          <div class="spark" aria-hidden="true">
+            <svg viewBox="0 0 92 24" preserveAspectRatio="none">
+              <path d="M0 14 C10 12 17 15 27 13 C40 10 48 12 59 9 C72 8 80 10 92 7" fill="none" stroke="oklch(59% 0.21 25)" stroke-width="2.2"></path>
+            </svg>
+          </div>
+        </div>
+        <div class="index-card compact">
+          <span>半導體指數</span>
+          <strong class="gain">682.90</strong>
+          <span class="delta gain">
+            <strong>+7.43<span>(+1.10%)</span></strong>
+          </span>
+          <div class="spark" aria-hidden="true">
+            <svg viewBox="0 0 92 24" preserveAspectRatio="none">
+              <path d="M0 20 C9 17 15 18 25 12 C36 5 44 9 54 6 C66 2 78 5 92 4" fill="none" stroke="oklch(59% 0.21 25)" stroke-width="2.2"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="nav" aria-label="主要導覽">
+    <a href="01-watchlist.html"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.7-9.4-9.1C.5 8 2.7 4 6.8 4c2 0 3.8 1 5.2 2.8C13.4 5 15.2 4 17.2 4c4.1 0 6.3 4 4.2 7.9C19 16.3 12 21 12 21Z"></path></svg><span>自選</span></a>
+    <a class="active" href="02-market.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"></path></svg><span>市場</span></a>
+    <a href="03-account.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"></path><circle cx="12" cy="8" r="4"></circle></svg><span>帳戶</span></a>
+  </nav>
+
+
+</body></html>

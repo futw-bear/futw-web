@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="zh-Hant"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>持股明細</title>
+  <style>
+    :root {
+      --bg: oklch(97% 0.018 70);
+      --surface: oklch(99% 0.008 70);
+      --fg: oklch(22% 0.02 50);
+      --muted: oklch(50% 0.018 50);
+      --border: oklch(90% 0.014 70);
+      --accent: oklch(64% 0.13 28);
+      --font-display: 'Tiempos Headline', 'Newsreader', 'Iowan Old Style', Georgia, serif;
+      --font-body: 'Söhne', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --gain: oklch(59% 0.21 25);
+      --loss: oklch(55% 0.16 150);
+      --warm: oklch(94% 0.05 55);
+      --bar-blue: oklch(62% 0.12 245);
+      --bar-cyan: oklch(73% 0.09 200);
+      --bar-green: oklch(72% 0.10 150);
+      --bar-gold: oklch(74% 0.10 78);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 15px;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 18px 16px 92px;
+      background:
+        radial-gradient(circle at 18% 8%, oklch(94% 0.05 45 / 0.72), transparent 32%),
+        linear-gradient(180deg, oklch(99% 0.008 70), var(--bg) 42%);
+    }
+
+    .topbar, .nav, .summary-head, .table-head, .row, .back-button, .filter-row {
+      display: flex;
+      align-items: center;
+    }
+
+    .topbar {
+      justify-content: space-between;
+      gap: 12px;
+      margin-block-end: 16px;
+    }
+
+    .back-button {
+      justify-content: center;
+      inline-size: 38px;
+      block-size: 38px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--fg);
+      text-decoration: none;
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.05;
+      font-weight: 780;
+      letter-spacing: -0.01em;
+    }
+
+    .topbar-spacer {
+      inline-size: 38px;
+      block-size: 38px;
+    }
+
+    .segment {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 5px;
+      border: 1px solid var(--border);
+      border-radius: 17px;
+      background: oklch(99% 0.006 70 / 0.8);
+      margin-block-end: 12px;
+    }
+
+    .segment button {
+      min-block-size: 38px;
+      border: 0;
+      border-radius: 13px;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 760;
+      letter-spacing: 0.02em;
+    }
+
+    .segment button.active {
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 10px 24px oklch(42% 0.11 28 / 0.18);
+    }
+
+    .asset-card {
+      display: grid;
+      gap: 15px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--surface);
+      box-shadow: 0 18px 44px oklch(42% 0.03 60 / 0.08);
+      margin-block-end: 14px;
+    }
+
+    .filter-row {
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+    }
+
+    .filter-pill {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: var(--warm);
+      color: oklch(40% 0.06 55);
+    }
+
+    .summary-head {
+      justify-content: space-between;
+      align-items: end;
+      gap: 12px;
+    }
+
+    .total {
+      display: grid;
+      gap: 5px;
+      text-align: center;
+      flex: 1;
+    }
+
+    .total span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+      letter-spacing: 0.02em;
+    }
+
+    .amount {
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 820;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .currency {
+      font-size: 13px;
+      font-weight: 760;
+      margin-inline-end: 3px;
+    }
+
+    .updated {
+      text-align: end;
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chart {
+      display: grid;
+      grid-template-columns: 132px minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+      padding-block-start: 4px;
+    }
+
+    .pie {
+      inline-size: 132px;
+      block-size: 132px;
+      border-radius: 999px;
+      background: conic-gradient(
+        var(--bar-blue) 0 60.8%,
+        var(--bar-cyan) 60.8% 80.3%,
+        var(--bar-green) 80.3% 85.1%,
+        var(--bar-gold) 85.1% 88.1%,
+        var(--accent) 88.1% 95.2%,
+        oklch(70% 0.08 24) 95.2% 100%
+      );
+      box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.42);
+    }
+
+    .pie-legend {
+      display: grid;
+      gap: 8px;
+      min-inline-size: 0;
+    }
+
+    .pie-row {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr) auto;
+      gap: 7px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pie-row strong {
+      color: var(--fg);
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .pie-dot {
+      inline-size: 10px;
+      block-size: 10px;
+      border-radius: 999px;
+      background: var(--bar-blue);
+    }
+
+    .holdings-card {
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .table-head {
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 14px 10px;
+      border-block-end: 1px solid var(--border);
+    }
+
+    .table-head h2 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.2;
+      font-weight: 780;
+    }
+
+    .table-head span {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .columns, .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 0.72fr 0.9fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .columns {
+      padding: 10px 14px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: 0.02em;
+      border-block-end: 1px solid var(--border);
+    }
+
+    .sort {
+      color: var(--accent);
+      font-size: 10px;
+      vertical-align: 1px;
+    }
+
+    .row {
+      padding: 12px 14px;
+      min-block-size: 64px;
+      background: var(--surface);
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .row:nth-child(even) {
+      background: oklch(96% 0.012 70);
+    }
+
+    .security {
+      display: grid;
+      gap: 3px;
+      min-inline-size: 0;
+    }
+
+    .security strong {
+      font-size: 17px;
+      line-height: 1.05;
+      font-weight: 820;
+    }
+
+    .security span {
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .shares, .market-value {
+      text-align: end;
+      font-size: 17px;
+      font-weight: 760;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .market-value {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chevron {
+      color: var(--muted);
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 400;
+    }
+
+    .nav {
+      position: fixed;
+      inset-inline: 0;
+      inset-block-end: 0;
+      block-size: 72px;
+      justify-content: space-around;
+      background: oklch(99% 0.006 70 / 0.94);
+      backdrop-filter: blur(18px);
+      border-block-start: 1px solid var(--border);
+    }
+
+    .nav a {
+      min-inline-size: 72px;
+      min-block-size: 56px;
+      display: grid;
+      place-items: center;
+      gap: 3px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .nav a.active { color: var(--accent); }
+    svg { inline-size: 20px; block-size: 20px; }
+  </style>
+</head>
+<body>
+  <main class="app" data-od-id="holdings-detail-screen">
+    <header class="topbar" data-od-id="holdings-detail-header">
+      <a class="back-button" href="03-account.html" aria-label="返回帳戶" data-od-id="back-to-account">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 18-6-6 6-6"></path></svg>
+      </a>
+      <h1 data-od-id="holdings-detail-title">配置明細</h1>
+      <div class="topbar-spacer" aria-hidden="true"></div>
+    </header>
+
+    
+
+    <section class="asset-card" aria-label="資產分佈摘要" data-od-id="asset-distribution-card">
+      
+      <div class="summary-head">
+        <div class="total">
+          <span>總資產</span>
+          <strong class="amount"><span class="currency">TWD</span>2,508,879</strong>
+        </div>
+      </div>
+      
+      <div class="chart" aria-label="市值分佈圓餅圖" data-od-id="market-value-chart">
+        <div class="pie" aria-hidden="true"></div>
+        <div class="pie-legend">
+          <div class="pie-row"><span class="pie-dot" style="background: var(--bar-blue)"></span><span>富邦台 50</span><strong>60.8%</strong></div>
+          <div class="pie-row"><span class="pie-dot" style="background: var(--bar-cyan)"></span><span>台積電</span><strong>19.5%</strong></div>
+          <div class="pie-row"><span class="pie-dot" style="background: var(--bar-green)"></span><span>國泰 20 年美債</span><strong>4.8%</strong></div>
+          <div class="pie-row"><span class="pie-dot" style="background: var(--bar-gold)"></span><span>元大高股息</span><strong>2.9%</strong></div>
+          <div class="pie-row"><span class="pie-dot" style="background: var(--accent)"></span><span>元大台灣50</span><strong>7.1%</strong></div>
+          <div class="pie-row"><span class="pie-dot" style="background: oklch(70% 0.08 24)"></span><span>其他</span><strong>4.8%</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="holdings-card" aria-label="所有持股" data-od-id="all-holdings-table">
+      <div class="table-head">
+        <h2>所有持股</h2>
+        
+      </div>
+      <div class="columns" aria-hidden="true">
+        <span>證券名稱 <span class="sort">▽</span></span>
+        <span>餘額 <span class="sort">▽</span></span>
+        <span>市值 <span class="sort">▼</span></span>
+      </div>
+      <a class="row" href="#" data-od-id="holding-006208">
+        <span class="security"><strong>富邦台 50</strong><span>006208</span></span>
+        <span class="shares">6,067</span>
+        <span class="market-value">1,524,940 <span class="chevron">›</span></span>
+      </a>
+      <a class="row" href="#" data-od-id="holding-2330">
+        <span class="security"><strong>台積電</strong><span>2330</span></span>
+        <span class="shares">200</span>
+        <span class="market-value">489,000 <span class="chevron">›</span></span>
+      </a>
+      <a class="row" href="#" data-od-id="holding-00687b">
+        <span class="security"><strong>國泰 20 年美債</strong><span>00687B</span></span>
+        <span class="shares">4,308</span>
+        <span class="market-value">121,270 <span class="chevron">›</span></span>
+      </a>
+      <a class="row" href="#" data-od-id="holding-0056">
+        <span class="security"><strong>元大高股息</strong><span>0056</span></span>
+        <span class="shares">1,399</span>
+        <span class="market-value">73,937 <span class="chevron">›</span></span>
+      </a>
+      <a class="row" href="#" data-od-id="holding-0050">
+        <span class="security"><strong>元大台灣50</strong><span>0050</span></span>
+        <span class="shares">260</span>
+        <span class="market-value">178,840 <span class="chevron">›</span></span>
+      </a>
+      <a class="row" href="#" data-od-id="holding-2412">
+        <span class="security"><strong>中華電</strong><span>2412</span></span>
+        <span class="shares">900</span>
+        <span class="market-value">61,500 <span class="chevron">›</span></span>
+      </a>
+      <a class="row" href="#" data-od-id="holding-2884">
+        <span class="security"><strong>玉山金</strong><span>2884</span></span>
+        <span class="shares">2,000</span>
+        <span class="market-value">35,000 <span class="chevron">›</span></span>
+      </a>
+      <a class="row" href="#" data-od-id="holding-2891">
+        <span class="security"><strong>中信金</strong><span>2891</span></span>
+        <span class="shares">1,500</span>
+        <span class="market-value">24,392 <span class="chevron">›</span></span>
+      </a>
+    </section>
+  </main>
+
+  <nav class="nav" aria-label="主要導覽" data-od-id="holdings-detail-nav">
+    <a href="01-watchlist.html"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.7-9.4-9.1C.5 8 2.7 4 6.8 4c2 0 3.8 1 5.2 2.8C13.4 5 15.2 4 17.2 4c4.1 0 6.3 4 4.2 7.9C19 16.3 12 21 12 21Z"></path></svg><span>自選</span></a>
+    <a href="02-market.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"></path></svg><span>市場</span></a>
+    <a class="active" href="03-account.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"></path><circle cx="12" cy="8" r="4"></circle></svg><span>帳戶</span></a>
+  </nav>
+
+
+
+</body></html>
