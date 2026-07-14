@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowUpDown, Pencil, Plus, Search } from "lucide-react";
+import { ArrowUpDown, CircleMinus, Pencil, Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
@@ -9,7 +9,7 @@ import {
 } from "#/lib/intraday-quotes";
 import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
 import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
-import { getWatchlistStocks } from "#/lib/watchlist";
+import { getWatchlistStocks, removeWatchlistTicker } from "#/lib/watchlist";
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -33,10 +33,13 @@ function Home() {
 		return isAuthenticated ? storedStocks.map(resetStockQuote) : storedStocks;
 	});
 	const [liveQuoteError, setLiveQuoteError] = useState(false);
+	const [isEditing, setIsEditing] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
+		let refreshVersion = 0;
 		const refreshStocks = () => {
+			const currentRefreshVersion = ++refreshVersion;
 			const storedStocks = getWatchlistStocks();
 			setStocks(
 				serverCredentials ? storedStocks.map(resetStockQuote) : storedStocks,
@@ -49,7 +52,7 @@ function Home() {
 				serverCredentials,
 			)
 				.then((quotes) => {
-					if (cancelled) return;
+					if (cancelled || currentRefreshVersion !== refreshVersion) return;
 					setStocks(
 						storedStocks.map((stock, index) => ({
 							...stock,
@@ -115,7 +118,17 @@ function Home() {
 				<section className="watchlist" aria-label="自選清單">
 					{visibleStocks.map((stock) => (
 						<div className="watchlist-row" key={stock.ticker}>
-							<div className="security-name">
+							<div className={`security-name ${isEditing ? "editing" : ""}`}>
+								{isEditing && (
+									<button
+										className="watchlist-remove-button"
+										type="button"
+										aria-label={`將${stock.name}移出自選列表`}
+										onClick={() => removeWatchlistTicker(stock.ticker)}
+									>
+										<CircleMinus aria-hidden="true" />
+									</button>
+								)}
 								{isAuthenticated ? (
 									<Link to="/stocks/$ticker" params={{ ticker: stock.ticker }}>
 										<strong>{stock.name}</strong>
@@ -178,9 +191,13 @@ function Home() {
 						<Plus />
 						新增自選
 					</Link>
-					<button type="button">
+					<button
+						type="button"
+						aria-pressed={isEditing}
+						onClick={() => setIsEditing((editing) => !editing)}
+					>
 						<Pencil />
-						編輯自選
+						{isEditing ? "完成編輯" : "編輯自選"}
 					</button>
 				</div>
 			</main>

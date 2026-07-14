@@ -19,6 +19,8 @@ import {
 
 type NavigationKey = "watchlist" | "market" | "account";
 
+const LOGIN_MODAL_EXIT_DURATION = 180;
+
 export function BrandMark() {
 	return (
 		<picture className="brand-mark">
@@ -115,6 +117,9 @@ function ServerLoginModal({
 	);
 	const [errorMessage, setErrorMessage] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isClosing, setIsClosing] = useState(false);
+	const [shouldNavigateAfterClose, setShouldNavigateAfterClose] =
+		useState(false);
 	const serverAddressInputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
@@ -123,20 +128,44 @@ function ServerLoginModal({
 		serverAddressInputRef.current?.focus();
 		document.body.classList.add("modal-open");
 
+		return () => {
+			document.body.classList.remove("modal-open");
+			previouslyFocusedElement?.focus();
+		};
+	}, []);
+
+	useEffect(() => {
 		const closeOnEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape" && !isSubmitting) onClose();
+			if (event.key === "Escape" && !isSubmitting && !isClosing) {
+				setIsClosing(true);
+			}
 		};
 		document.addEventListener("keydown", closeOnEscape);
 
-		return () => {
-			document.body.classList.remove("modal-open");
-			document.removeEventListener("keydown", closeOnEscape);
-			previouslyFocusedElement?.focus();
-		};
-	}, [isSubmitting, onClose]);
+		return () => document.removeEventListener("keydown", closeOnEscape);
+	}, [isClosing, isSubmitting]);
+
+	useEffect(() => {
+		if (!isClosing) return;
+		const prefersReducedMotion =
+			window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+		const exitTimer = window.setTimeout(
+			() => {
+				if (shouldNavigateAfterClose) {
+					onAuthenticated();
+					return;
+				}
+				onClose();
+			},
+			prefersReducedMotion ? 0 : LOGIN_MODAL_EXIT_DURATION,
+		);
+
+		return () => window.clearTimeout(exitTimer);
+	}, [isClosing, onAuthenticated, onClose, shouldNavigateAfterClose]);
 
 	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
+		if (isClosing) return;
 		setErrorMessage("");
 		setIsSubmitting(true);
 
@@ -148,7 +177,8 @@ function ServerLoginModal({
 			}
 
 			storeServerCredentials(result.serverAddress, authPassword);
-			onAuthenticated();
+			setShouldNavigateAfterClose(true);
+			setIsClosing(true);
 		} catch (error) {
 			setErrorMessage(
 				error instanceof InvalidServerAddressError
@@ -160,13 +190,18 @@ function ServerLoginModal({
 		}
 	};
 
+	const handleClose = () => {
+		if (!isSubmitting) setIsClosing(true);
+	};
+
 	return (
-		<div className="login-modal-backdrop">
+		<div className={`login-modal-backdrop ${isClosing ? "is-closing" : ""}`}>
 			<section
 				className="login-modal"
 				role="dialog"
 				aria-modal="true"
 				aria-labelledby="server-login-title"
+				aria-hidden={isClosing || undefined}
 			>
 				<div className="login-modal__header">
 					<div>
@@ -177,8 +212,8 @@ function ServerLoginModal({
 						className="login-modal__close"
 						type="button"
 						aria-label="關閉登入視窗"
-						disabled={isSubmitting}
-						onClick={onClose}
+						disabled={isSubmitting || isClosing}
+						onClick={handleClose}
 					>
 						<X />
 					</button>
@@ -194,7 +229,7 @@ function ServerLoginModal({
 							placeholder="https://example.com"
 							autoComplete="url"
 							required
-							disabled={isSubmitting}
+							disabled={isSubmitting || isClosing}
 							value={serverAddress}
 							onChange={(event) => setServerAddress(event.target.value)}
 						/>
@@ -206,7 +241,7 @@ function ServerLoginModal({
 							name="authPassword"
 							autoComplete="current-password"
 							required
-							disabled={isSubmitting}
+							disabled={isSubmitting || isClosing}
 							value={authPassword}
 							onChange={(event) => setAuthPassword(event.target.value)}
 						/>
@@ -219,10 +254,18 @@ function ServerLoginModal({
 					)}
 
 					<div className="login-form__actions">
-						<button type="button" disabled={isSubmitting} onClick={onClose}>
+						<button
+							type="button"
+							disabled={isSubmitting || isClosing}
+							onClick={handleClose}
+						>
 							取消
 						</button>
-						<button className="primary" type="submit" disabled={isSubmitting}>
+						<button
+							className="primary"
+							type="submit"
+							disabled={isSubmitting || isClosing}
+						>
 							{isSubmitting ? "登入中…" : "登入"}
 						</button>
 					</div>

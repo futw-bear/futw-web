@@ -20,8 +20,10 @@ import {
 } from "#/lib/server-auth";
 import { routeTree } from "../routeTree.gen";
 
-function renderRoute(path: string) {
-	const history = createMemoryHistory({ initialEntries: [path] });
+function renderRoute(path: string, previousPath?: string) {
+	const history = createMemoryHistory({
+		initialEntries: previousPath ? [previousPath, path] : [path],
+	});
 	const router = createRouter({ routeTree, history });
 	return render(<RouterProvider router={router} />);
 }
@@ -84,6 +86,23 @@ describe("application routes", () => {
 		expect(page.queryByRole("link", { name: /台積電/ })).toBeNull();
 	});
 
+	it("removes stocks while editing the watchlist", async () => {
+		const { container } = renderRoute("/");
+		const page = within(container);
+
+		fireEvent.click(await page.findByRole("button", { name: "編輯自選" }));
+		expect(
+			page.getByRole("button", { name: "將台積電移出自選列表" }),
+		).toBeTruthy();
+		fireEvent.click(page.getByRole("button", { name: "將台積電移出自選列表" }));
+
+		await waitFor(() => expect(page.queryByText("台積電")).toBeNull());
+		expect(JSON.parse(localStorage.getItem("watchlist") ?? "[]")).not.toContain(
+			"2330",
+		);
+		expect(page.getByRole("button", { name: "完成編輯" })).toBeTruthy();
+	});
+
 	it("uses live watchlist quotes and hides the data hint when authenticated", async () => {
 		localStorage.setItem(
 			SERVER_ADDRESS_STORAGE_KEY,
@@ -132,6 +151,17 @@ describe("application routes", () => {
 			"請先登入帳戶",
 		);
 		expect(fetcher).not.toHaveBeenCalled();
+	});
+
+	it("returns to the previous page from a stock detail", async () => {
+		const { container } = renderRoute("/stocks/2330", "/search");
+		const page = within(container);
+
+		fireEvent.click(await page.findByRole("button", { name: "返回上一頁" }));
+
+		expect(
+			await page.findByRole("searchbox", { name: "搜尋股票或 ETF" }),
+		).toBeTruthy();
 	});
 
 	it("loads the authenticated stock detail summary from the quote API", async () => {
@@ -198,9 +228,19 @@ describe("application routes", () => {
 
 		expect(await page.findByRole("heading", { name: "台積電" })).toBeTruthy();
 		const summary = within(page.getByRole("region", { name: "股票報價" }));
-		const favorite = summary.getByRole("img", { name: "已加入自選列表" });
+		const favorite = summary.getByRole("button", {
+			name: "從自選移除此股票",
+		});
+		expect(favorite.getAttribute("aria-pressed")).toBe("true");
 		expect(favorite.querySelector("svg")?.getAttribute("fill")).toBe(
 			"currentColor",
+		);
+		fireEvent.click(favorite);
+		expect(
+			summary.getByRole("button", { name: "將此股票加入自選" }),
+		).toBeTruthy();
+		expect(JSON.parse(localStorage.getItem("watchlist") ?? "[]")).not.toContain(
+			"2330",
 		);
 		expect(summary.getByText("即時報價")).toBeTruthy();
 		expect(summary.getByText("1,035.00")).toBeTruthy();
@@ -254,7 +294,10 @@ describe("application routes", () => {
 		expect(
 			await summary.findByText("已收盤 07/14 13:30:45（台北）"),
 		).toBeTruthy();
-		const favorite = summary.getByRole("img", { name: "未加入自選列表" });
+		const favorite = summary.getByRole("button", {
+			name: "將此股票加入自選",
+		});
+		expect(favorite.getAttribute("aria-pressed")).toBe("false");
 		expect(favorite.querySelector("svg")?.getAttribute("fill")).toBe("none");
 	});
 
@@ -491,6 +534,7 @@ describe("application routes", () => {
 			expect(localStorage.getItem(SERVER_ADDRESS_STORAGE_KEY)).toBe(
 				"https://data.example.com",
 			);
+			expect(dialog.parentElement?.classList.contains("is-closing")).toBe(true);
 		});
 		expect(localStorage.getItem(AUTH_PASSWORD_STORAGE_KEY)).toBe(
 			"secret-token",
@@ -504,6 +548,22 @@ describe("application routes", () => {
 			}),
 		);
 		expect(await page.findByRole("heading", { name: "帳戶" })).toBeTruthy();
+	});
+
+	it("keeps the login modal mounted until its exit animation ends", async () => {
+		const { container } = renderRoute("/");
+		const page = within(container);
+
+		fireEvent.click(await page.findByRole("link", { name: "帳戶" }));
+		const dialog = page.getByRole("dialog", { name: "登入帳戶" });
+		const backdrop = dialog.parentElement as HTMLElement;
+		fireEvent.click(within(dialog).getByRole("button", { name: "取消" }));
+
+		expect(backdrop.classList.contains("is-closing")).toBe(true);
+		expect(page.getByRole("dialog", { hidden: true })).toBeTruthy();
+		await waitFor(() =>
+			expect(page.queryByRole("dialog", { hidden: true })).toBeNull(),
+		);
 	});
 
 	it("opens the account directly when credentials are already stored", async () => {
@@ -544,6 +604,17 @@ describe("application routes", () => {
 		expect(await search.findByText("台積電")).toBeTruthy();
 		expect(search.queryByText("旺玖")).toBeNull();
 		expect(search.queryByRole("link", { name: /台積電/ })).toBeNull();
+		const favorite = search.getByRole("button", {
+			name: "從自選移除台積電",
+		});
+		expect(favorite.getAttribute("aria-pressed")).toBe("true");
+		fireEvent.click(favorite);
+		expect(
+			search.getByRole("button", { name: "將台積電加入自選" }),
+		).toBeTruthy();
+		expect(JSON.parse(localStorage.getItem("watchlist") ?? "[]")).not.toContain(
+			"2330",
+		);
 	});
 
 	it("links authenticated search results to stock details", async () => {

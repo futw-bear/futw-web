@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { Heart, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { MainNavigation } from "#/components/app-shell";
 import { getStoredSecurities, searchSecurities } from "#/lib/security-search";
 import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
 import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
+import { getStoredWatchlist, toggleWatchlistTicker } from "#/lib/watchlist";
 
 export const Route = createFileRoute("/search")({ component: SearchPage });
 
@@ -16,6 +17,7 @@ function SearchPage() {
 	const isAuthenticated = serverCredentials !== null;
 	const [query, setQuery] = useState("");
 	const [securities, setSecurities] = useState(() => getStoredSecurities());
+	const [watchlist, setWatchlist] = useState(() => getStoredWatchlist());
 	const normalizedQuery = query.trim();
 	const results = useMemo(
 		() => searchSecurities(securities, normalizedQuery),
@@ -23,13 +25,16 @@ function SearchPage() {
 	);
 
 	useEffect(() => {
-		const refreshSecurities = () => setSecurities(getStoredSecurities());
-		window.addEventListener("storage", refreshSecurities);
-		window.addEventListener(MARKET_DATA_UPDATED_EVENT, refreshSecurities);
+		const refreshStoredData = () => {
+			setSecurities(getStoredSecurities());
+			setWatchlist(getStoredWatchlist());
+		};
+		window.addEventListener("storage", refreshStoredData);
+		window.addEventListener(MARKET_DATA_UPDATED_EVENT, refreshStoredData);
 
 		return () => {
-			window.removeEventListener("storage", refreshSecurities);
-			window.removeEventListener(MARKET_DATA_UPDATED_EVENT, refreshSecurities);
+			window.removeEventListener("storage", refreshStoredData);
+			window.removeEventListener(MARKET_DATA_UPDATED_EVENT, refreshStoredData);
 		};
 	}, []);
 
@@ -59,33 +64,51 @@ function SearchPage() {
 							aria-label="搜尋結果"
 							aria-live="polite"
 						>
-							{results.map((security) =>
-								isAuthenticated ? (
-									<Link
-										className="search-result"
-										key={security.ticker}
-										to="/stocks/$ticker"
-										params={{ ticker: security.ticker }}
-									>
-										<span className="search-result__security">
-											<strong>{security.name}</strong>
-											<small>{security.ticker}</small>
-										</span>
-										<span aria-hidden="true">›</span>
-									</Link>
-								) : (
-									<div
-										className="search-result disabled"
-										key={security.ticker}
-										aria-disabled="true"
-									>
-										<span className="search-result__security">
-											<strong>{security.name}</strong>
-											<small>{security.ticker}</small>
-										</span>
+							{results.map((security) => {
+								const favorite = watchlist.includes(security.ticker);
+								return (
+									<div className="search-result" key={security.ticker}>
+										<button
+											className={`search-result__favorite ${favorite ? "selected" : ""}`}
+											type="button"
+											aria-pressed={favorite}
+											aria-label={
+												favorite
+													? `從自選移除${security.name}`
+													: `將${security.name}加入自選`
+											}
+											onClick={() =>
+												setWatchlist(toggleWatchlistTicker(security.ticker))
+											}
+										>
+											<Heart fill={favorite ? "currentColor" : "none"} />
+										</button>
+										{isAuthenticated ? (
+											<Link
+												className="search-result__link"
+												to="/stocks/$ticker"
+												params={{ ticker: security.ticker }}
+											>
+												<span className="search-result__security">
+													<strong>{security.name}</strong>
+													<small>{security.ticker}</small>
+												</span>
+												<span aria-hidden="true">›</span>
+											</Link>
+										) : (
+											<span
+												className="search-result__link disabled"
+												aria-disabled="true"
+											>
+												<span className="search-result__security">
+													<strong>{security.name}</strong>
+													<small>{security.ticker}</small>
+												</span>
+											</span>
+										)}
 									</div>
-								),
-							)}
+								);
+							})}
 						</section>
 					) : (
 						<div className="empty-state search-empty">

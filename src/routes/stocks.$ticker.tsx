@@ -1,4 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	useNavigate,
+	useRouter,
+} from "@tanstack/react-router";
 import { ChevronLeft, Heart, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -15,7 +20,8 @@ import {
 } from "#/lib/candles";
 import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
 import { downloadStockQuote, type StockQuote } from "#/lib/stock-quote";
-import { getStoredWatchlist } from "#/lib/watchlist";
+import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
+import { getStoredWatchlist, toggleWatchlistTicker } from "#/lib/watchlist";
 
 export const Route = createFileRoute("/stocks/$ticker")({
 	component: StockDetailPage,
@@ -39,6 +45,31 @@ function formatTaipeiDateTime(timestampMicroseconds: number | null) {
 		parts.find((part) => part.type === type)?.value ?? "--";
 
 	return `${value("month")}/${value("day")} ${value("hour")}:${value("minute")}:${value("second")}`;
+}
+
+function BackButton() {
+	const navigate = useNavigate();
+	const router = useRouter();
+
+	const handleBack = () => {
+		if (router.history.canGoBack()) {
+			router.history.back();
+			return;
+		}
+
+		void navigate({ to: "/" });
+	};
+
+	return (
+		<button
+			className="icon-button"
+			type="button"
+			onClick={handleBack}
+			aria-label="返回上一頁"
+		>
+			<ChevronLeft />
+		</button>
+	);
 }
 
 function StockDetailPage() {
@@ -71,7 +102,9 @@ function StockDetailPage() {
 		serverCredentials !== null,
 	);
 	const [candlesError, setCandlesError] = useState(false);
-	const favorite = getStoredWatchlist().includes(ticker);
+	const [favorite, setFavorite] = useState(() =>
+		getStoredWatchlist().includes(ticker),
+	);
 	const isCandleMinuteTimeframe = CANDLE_MINUTE_TIMEFRAMES.some(
 		(minuteTimeframe) => minuteTimeframe === timeframe,
 	);
@@ -81,6 +114,19 @@ function StockDetailPage() {
 		: quote.isClose
 			? `已收盤 ${quoteUpdatedAt ?? "--"}（台北）`
 			: "即時報價";
+
+	useEffect(() => {
+		const refreshFavorite = () =>
+			setFavorite(getStoredWatchlist().includes(ticker));
+		refreshFavorite();
+		window.addEventListener("storage", refreshFavorite);
+		window.addEventListener(MARKET_DATA_UPDATED_EVENT, refreshFavorite);
+
+		return () => {
+			window.removeEventListener("storage", refreshFavorite);
+			window.removeEventListener(MARKET_DATA_UPDATED_EVENT, refreshFavorite);
+		};
+	}, [ticker]);
 
 	useEffect(() => {
 		if (!serverCredentials) return;
@@ -133,9 +179,7 @@ function StockDetailPage() {
 		return (
 			<main className="app-page stock-detail-page">
 				<header className="stock-toolbar">
-					<Link className="icon-button" to="/" aria-label="返回自選">
-						<ChevronLeft />
-					</Link>
+					<BackButton />
 					<Link className="icon-button" to="/search" aria-label="搜尋">
 						<Search />
 					</Link>
@@ -152,9 +196,7 @@ function StockDetailPage() {
 		<>
 			<main className="app-page stock-detail-page">
 				<header className="stock-toolbar">
-					<Link className="icon-button" to="/" aria-label="返回自選">
-						<ChevronLeft />
-					</Link>
+					<BackButton />
 					<Link className="icon-button" to="/search" aria-label="搜尋">
 						<Search />
 					</Link>
@@ -172,16 +214,20 @@ function StockDetailPage() {
 					aria-busy={isLoading}
 				>
 					<div className="stock-name">
-						<span
-							className={`stock-favorite-indicator ${favorite ? "selected" : ""}`}
-							role="img"
-							aria-label={favorite ? "已加入自選列表" : "未加入自選列表"}
+						<button
+							className={`stock-favorite-button ${favorite ? "selected" : ""}`}
+							type="button"
+							aria-pressed={favorite}
+							aria-label={favorite ? "從自選移除此股票" : "將此股票加入自選"}
+							onClick={() =>
+								setFavorite(toggleWatchlistTicker(ticker).includes(ticker))
+							}
 						>
 							<Heart
 								fill={favorite ? "currentColor" : "none"}
 								aria-hidden="true"
 							/>
-						</span>
+						</button>
 						<h1>{quote.name}</h1>
 						<span>{quote.symbol}</span>
 					</div>
