@@ -4,11 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import { MainNavigation } from "#/components/app-shell";
 import { getStoredSecurities, searchSecurities } from "#/lib/security-search";
+import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
 import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
 
 export const Route = createFileRoute("/search")({ component: SearchPage });
 
 function SearchPage() {
+	const [serverCredentials] = useState(() =>
+		getAuthenticatedServerCredentials(),
+	);
+	const isAuthenticated = serverCredentials !== null;
 	const [query, setQuery] = useState("");
 	const [securities, setSecurities] = useState(() => getStoredSecurities());
 	const normalizedQuery = query.trim();
@@ -54,20 +59,33 @@ function SearchPage() {
 							aria-label="搜尋結果"
 							aria-live="polite"
 						>
-							{results.map((security) => (
-								<Link
-									className="search-result"
-									key={security.ticker}
-									to="/stocks/$ticker"
-									params={{ ticker: security.ticker }}
-								>
-									<span className="search-result__security">
-										<strong>{security.name}</strong>
-										<small>{security.ticker}</small>
-									</span>
-									<span aria-hidden="true">›</span>
-								</Link>
-							))}
+							{results.map((security) =>
+								isAuthenticated ? (
+									<Link
+										className="search-result"
+										key={security.ticker}
+										to="/stocks/$ticker"
+										params={{ ticker: security.ticker }}
+									>
+										<span className="search-result__security">
+											<strong>{security.name}</strong>
+											<small>{security.ticker}</small>
+										</span>
+										<span aria-hidden="true">›</span>
+									</Link>
+								) : (
+									<div
+										className="search-result disabled"
+										key={security.ticker}
+										aria-disabled="true"
+									>
+										<span className="search-result__security">
+											<strong>{security.name}</strong>
+											<small>{security.ticker}</small>
+										</span>
+									</div>
+								),
+							)}
 						</section>
 					) : (
 						<div className="empty-state search-empty">

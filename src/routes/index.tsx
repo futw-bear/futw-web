@@ -116,26 +116,55 @@ function Home() {
 					{visibleStocks.map((stock) => (
 						<div className="watchlist-row" key={stock.ticker}>
 							<div className="security-name">
-								<Link to="/stocks/$ticker" params={{ ticker: stock.ticker }}>
-									<strong>{stock.name}</strong>
-									<small>{stock.ticker}</small>
-								</Link>
+								{isAuthenticated ? (
+									<Link to="/stocks/$ticker" params={{ ticker: stock.ticker }}>
+										<strong>{stock.name}</strong>
+										<small>{stock.ticker}</small>
+									</Link>
+								) : (
+									<span
+										className="security-name__disabled"
+										aria-disabled="true"
+									>
+										<strong>{stock.name}</strong>
+										<small>{stock.ticker}</small>
+									</span>
+								)}
 							</div>
-							<Link
-								className={`stock-price ${stock.direction}`}
-								to="/stocks/$ticker"
-								params={{ ticker: stock.ticker }}
-							>
-								{stock.price}
-							</Link>
-							<Link
-								className={`change-pill ${stock.direction}`}
-								to="/stocks/$ticker"
-								params={{ ticker: stock.ticker }}
-							>
-								<strong>{stock.change}</strong>
-								<small>{stock.percent}</small>
-							</Link>
+							{isAuthenticated ? (
+								<Link
+									className={`stock-price ${stock.direction}`}
+									to="/stocks/$ticker"
+									params={{ ticker: stock.ticker }}
+								>
+									{stock.price}
+								</Link>
+							) : (
+								<span
+									className={`stock-price ${stock.direction}`}
+									aria-disabled="true"
+								>
+									{stock.price}
+								</span>
+							)}
+							{isAuthenticated ? (
+								<Link
+									className={`change-pill ${stock.direction}`}
+									to="/stocks/$ticker"
+									params={{ ticker: stock.ticker }}
+								>
+									<strong>{stock.change}</strong>
+									<small>{stock.percent}</small>
+								</Link>
+							) : (
+								<span
+									className={`change-pill ${stock.direction}`}
+									aria-disabled="true"
+								>
+									<strong>{stock.change}</strong>
+									<small>{stock.percent}</small>
+								</span>
+							)}
 						</div>
 					))}
 				</section>

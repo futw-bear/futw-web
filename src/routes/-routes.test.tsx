@@ -72,14 +72,16 @@ afterEach(() => {
 
 describe("application routes", () => {
 	it("uses the watchlist design as the home route", async () => {
-		renderRoute("/");
+		const { container } = renderRoute("/");
+		const page = within(container);
 
-		expect(await screen.findByRole("heading", { name: "自選" })).toBeTruthy();
-		expect(screen.getByText("台積電")).toBeTruthy();
+		expect(await page.findByRole("heading", { name: "自選" })).toBeTruthy();
+		expect(page.getByText("台積電")).toBeTruthy();
 
-		expect(screen.getByText("元大台灣50")).toBeTruthy();
-		expect(screen.getByText("鴻海")).toBeTruthy();
-		expect(screen.getByText("資料更新於 2025/07/04")).toBeTruthy();
+		expect(page.getByText("元大台灣50")).toBeTruthy();
+		expect(page.getByText("鴻海")).toBeTruthy();
+		expect(page.getByText("資料更新於 2025/07/04")).toBeTruthy();
+		expect(page.queryByRole("link", { name: /台積電/ })).toBeNull();
 	});
 
 	it("uses live watchlist quotes and hides the data hint when authenticated", async () => {
@@ -108,6 +110,62 @@ describe("application routes", () => {
 		expect(await page.findByText("1,048.50")).toBeTruthy();
 		expect(page.getByText("+13.50")).toBeTruthy();
 		expect(page.getByText("+1.30%")).toBeTruthy();
+		expect(fetcher).toHaveBeenCalledWith(
+			"https://data.example.com/proxy/market-data/intraday/quote/2330",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer secret-token",
+				}),
+			}),
+		);
+		expect(
+			page.getByRole("link", { name: /台積電/ }).getAttribute("href"),
+		).toBe("/stocks/2330");
+	});
+
+	it("requires login when a stock detail URL is opened directly", async () => {
+		const fetcher = vi.spyOn(window, "fetch");
+		const { container } = renderRoute("/stocks/2330");
+		const page = within(container);
+
+		expect((await page.findByRole("alert")).textContent).toContain(
+			"請先登入帳戶",
+		);
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
+	it("loads the authenticated stock detail summary from the quote API", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		const fetcher = vi.spyOn(window, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					name: "台積電",
+					symbol: "2330",
+					closePrice: 1035,
+					change: 15,
+					changePercent: 1.47,
+					highPrice: 1040,
+					lowPrice: 1020,
+					openPrice: 1025,
+					previousClose: 1020,
+				}),
+				{ status: 200 },
+			),
+		);
+		const { container } = renderRoute("/stocks/2330");
+		const page = within(container);
+
+		expect(await page.findByRole("heading", { name: "台積電" })).toBeTruthy();
+		expect(page.getByText("1,035.00")).toBeTruthy();
+		expect(page.getByText("+15.00 +1.47%")).toBeTruthy();
+		expect(page.getByText("1,040.00")).toBeTruthy();
+		expect(page.getByText("1,025.00")).toBeTruthy();
+		expect(page.getAllByText("1,020.00")).toHaveLength(2);
+		expect(page.getByRole("img", { name: "台積電五日股價走勢" })).toBeTruthy();
 		expect(fetcher).toHaveBeenCalledWith(
 			"https://data.example.com/proxy/market-data/intraday/quote/2330",
 			expect.objectContaining({
@@ -224,5 +282,27 @@ describe("application routes", () => {
 		fireEvent.change(searchInput, { target: { value: "積電" } });
 		expect(await search.findByText("台積電")).toBeTruthy();
 		expect(search.queryByText("旺玖")).toBeNull();
+		expect(search.queryByRole("link", { name: /台積電/ })).toBeNull();
+	});
+
+	it("links authenticated search results to stock details", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		const { container } = renderRoute("/search");
+		const search = within(container);
+
+		fireEvent.change(
+			await search.findByRole("searchbox", { name: "搜尋股票或 ETF" }),
+			{ target: { value: "積電" } },
+		);
+
+		expect(
+			(await search.findByRole("link", { name: /台積電/ })).getAttribute(
+				"href",
+			),
+		).toBe("/stocks/2330");
 	});
 });

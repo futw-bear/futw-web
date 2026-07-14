@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft, Heart, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
+import { downloadStockQuote, type StockQuote } from "#/lib/stock-quote";
 
 export const Route = createFileRoute("/stocks/$ticker")({
 	component: StockDetailPage,
@@ -71,9 +74,66 @@ function StockChart() {
 }
 
 function StockDetailPage() {
+	const { ticker } = Route.useParams();
+	const [serverCredentials] = useState(() =>
+		getAuthenticatedServerCredentials(),
+	);
+	const [quote, setQuote] = useState<StockQuote>({
+		name: ticker,
+		symbol: ticker,
+		closePrice: "--",
+		change: "--",
+		changePercent: "--",
+		highPrice: "--",
+		lowPrice: "--",
+		openPrice: "--",
+		previousClose: "--",
+		direction: "neutral",
+	});
+	const [isLoading, setIsLoading] = useState(serverCredentials !== null);
+	const [error, setError] = useState(false);
 	const [favorite, setFavorite] = useState(true);
 	const [range, setRange] = useState("5日");
 	const ranges = ["5日", "日K", "週K", "月K"];
+
+	useEffect(() => {
+		if (!serverCredentials) return;
+		let cancelled = false;
+		setError(false);
+		void downloadStockQuote(ticker, serverCredentials)
+			.then((downloadedQuote) => {
+				if (!cancelled) setQuote(downloadedQuote);
+			})
+			.catch(() => {
+				if (!cancelled) setError(true);
+			})
+			.finally(() => {
+				if (!cancelled) setIsLoading(false);
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [serverCredentials, ticker]);
+
+	if (!serverCredentials) {
+		return (
+			<main className="app-page stock-detail-page">
+				<header className="stock-toolbar">
+					<Link className="icon-button" to="/" aria-label="返回自選">
+						<ChevronLeft />
+					</Link>
+					<Link className="icon-button" to="/search" aria-label="搜尋">
+						<Search />
+					</Link>
+				</header>
+				<div className="empty-state" role="alert">
+					<strong>請先登入帳戶</strong>
+					<span>登入後即可查看個股即時行情。</span>
+				</div>
+			</main>
+		);
+	}
 
 	return (
 		<>
@@ -93,64 +153,48 @@ function StockDetailPage() {
 					</button>
 					<button type="button">即時交易</button>
 				</nav>
-
-				<section className="security-summary" aria-label="股票報價">
-					<div className="stock-name">
-						<h1>台積電</h1>
-						<span>2330</span>
+				{error && (
+					<div className="market-data-state" role="alert">
+						個股即時行情暫時無法取得，請稍後再試。
 					</div>
-					<p>收盤價 07/04 13:30:00（台北）</p>
+				)}
+
+				<section
+					className="security-summary"
+					aria-label="股票報價"
+					aria-busy={isLoading}
+				>
+					<div className="stock-name">
+						<h1>{quote.name}</h1>
+						<span>{quote.symbol}</span>
+					</div>
+					<p>{isLoading ? "正在載入即時報價…" : "即時報價"}</p>
 					<div className="quote-row">
-						<div className="main-quote">
-							<strong>1,035.00</strong>
-							<span>+15.00 +1.47%</span>
+						<div className={`main-quote ${quote.direction}`}>
+							<strong>{quote.closePrice}</strong>
+							<span>
+								{quote.change} {quote.changePercent}
+							</span>
 						</div>
 						<div className="quote-metrics">
 							<span>
 								<small>最高</small>
-								<strong className="gain">1,040.00</strong>
+								<strong className="gain">{quote.highPrice}</strong>
 							</span>
 							<span>
 								<small>開盤</small>
-								<strong>1,025.00</strong>
+								<strong>{quote.openPrice}</strong>
 							</span>
 							<span>
 								<small>最低</small>
-								<strong className="loss">1,020.00</strong>
+								<strong className="loss">{quote.lowPrice}</strong>
 							</span>
 							<span>
 								<small>昨收</small>
-								<strong>1,020.00</strong>
+								<strong>{quote.previousClose}</strong>
 							</span>
 						</div>
 					</div>
-				</section>
-
-				<section className="stock-metric-grid" aria-label="行情指標">
-					<span>
-						<small>成交額</small>
-						<strong>486.2億</strong>
-					</span>
-					<span>
-						<small>本益比 PE</small>
-						<strong>25.8</strong>
-					</span>
-					<span>
-						<small>股價淨值比 PB</small>
-						<strong>26.84</strong>
-					</span>
-					<span>
-						<small>成交量</small>
-						<strong>46,872張</strong>
-					</span>
-					<span>
-						<small>52 周最高</small>
-						<strong>1,100.00</strong>
-					</span>
-					<span>
-						<small>52 周最低</small>
-						<strong>762.00</strong>
-					</span>
 				</section>
 
 				<nav className="range-tabs" aria-label="圖表區間">
