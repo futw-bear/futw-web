@@ -5,9 +5,19 @@ import {
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+	AUTH_PASSWORD_STORAGE_KEY,
+	SERVER_ADDRESS_STORAGE_KEY,
+} from "#/lib/server-auth";
 import { routeTree } from "../routeTree.gen";
 
 function renderRoute(path: string) {
@@ -56,6 +66,10 @@ beforeEach(() => {
 	localStorage.setItem("prices:OTC", "[]");
 });
 
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe("application routes", () => {
 	it("uses the watchlist design as the home route", async () => {
 		renderRoute("/");
@@ -76,6 +90,43 @@ describe("application routes", () => {
 		expect(
 			screen.getByRole("link", { name: "檢視明細" }).getAttribute("href"),
 		).toBe("/holdings");
+	});
+
+	it("authenticates through the account navigation modal", async () => {
+		const fetcher = vi
+			.spyOn(window, "fetch")
+			.mockResolvedValue(new Response("[]", { status: 200 }));
+		const { container } = renderRoute("/");
+		const page = within(container);
+
+		fireEvent.click(await page.findByRole("link", { name: "帳戶" }));
+		const dialog = page.getByRole("dialog", { name: "登入帳戶" });
+		const login = within(dialog);
+		fireEvent.change(login.getByLabelText("伺服器位址"), {
+			target: { value: "https://data.example.com/" },
+		});
+		fireEvent.change(login.getByLabelText("認證密碼"), {
+			target: { value: "secret-token" },
+		});
+		fireEvent.click(login.getByRole("button", { name: "登入" }));
+
+		await waitFor(() => {
+			expect(localStorage.getItem(SERVER_ADDRESS_STORAGE_KEY)).toBe(
+				"https://data.example.com",
+			);
+		});
+		expect(localStorage.getItem(AUTH_PASSWORD_STORAGE_KEY)).toBe(
+			"secret-token",
+		);
+		expect(fetcher).toHaveBeenCalledWith(
+			"https://data.example.com/proxy/market-data/intraday/tickers",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer secret-token",
+				}),
+			}),
+		);
+		expect(await page.findByRole("heading", { name: "帳戶" })).toBeTruthy();
 	});
 
 	it("searches stored securities by partial ticker and name", async () => {
