@@ -81,12 +81,7 @@ function MarketPage() {
 		<>
 			<main className="app-page market-page">
 				<PageHeader
-					title="市場"
-					action={
-						<button className="icon-button" type="button" aria-label="篩選">
-							<SlidersHorizontal />
-						</button>
-					}
+          title="市場"
 				/>
 				{!isAuthenticated && (
 					<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
