@@ -1,81 +1,34 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowUpDown, Pencil, Plus, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
-import { Sparkline } from "#/components/sparkline";
+import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
+import { getWatchlistStocks } from "#/lib/watchlist";
 
 export const Route = createFileRoute("/")({ component: Home });
 
 function Home() {
-	const [category, setCategory] = useState<"全部" | "證券" | "ETF">("全部");
-	const stocks = useMemo(
-		() => [
-			{
-				name: "台積電",
-				ticker: "2330",
-				price: "1,035.00",
-				change: "+15.00",
-				percent: "+1.47%",
-				direction: "gain" as const,
-				kind: "證券",
-				path: "M1 21 L10 18 L19 20 L28 13 L37 16 L46 10 L55 12 L64 7 L81 4",
-			},
-			{
-				name: "鴻海",
-				ticker: "2317",
-				price: "212.50",
-				change: "+4.00",
-				percent: "+1.92%",
-				direction: "gain" as const,
-				kind: "證券",
-				path: "M1 22 L12 24 L24 19 L36 18 L48 13 L60 15 L72 10 L81 8",
-			},
-			{
-				name: "元大台灣50",
-				ticker: "0050",
-				price: "196.80",
-				change: "+0.85",
-				percent: "+0.43%",
-				direction: "gain" as const,
-				kind: "ETF",
-				path: "M1 26 L12 22 L24 20 L36 17 L48 14 L60 16 L72 12 L81 10",
-			},
-			{
-				name: "聯發科",
-				ticker: "2454",
-				price: "1,375.00",
-				change: "-20.00",
-				percent: "-1.43%",
-				direction: "loss" as const,
-				kind: "證券",
-				path: "M1 11 L13 14 L25 12 L37 17 L49 19 L61 21 L73 24 L81 28",
-			},
-			{
-				name: "中華電",
-				ticker: "2412",
-				price: "126.00",
-				change: "-0.50",
-				percent: "-0.40%",
-				direction: "loss" as const,
-				kind: "證券",
-				path: "M1 18 L15 17 L29 20 L43 18 L57 19 L69 22 L81 21",
-			},
-			{
-				name: "玉山金",
-				ticker: "2884",
-				price: "31.20",
-				change: "+0.15",
-				percent: "+0.48%",
-				direction: "gain" as const,
-				kind: "證券",
-				path: "M1 24 L12 22 L24 25 L36 20 L48 18 L60 17 L72 15 L81 13",
-			},
-		],
-		[],
-	);
-	const visibleStocks = stocks.filter(
-		(stock) => category === "全部" || stock.kind === category,
+	const [stocks, setStocks] = useState(() => getWatchlistStocks());
+
+	useEffect(() => {
+		const refreshStocks = () => setStocks(getWatchlistStocks());
+		window.addEventListener("storage", refreshStocks);
+		window.addEventListener(MARKET_DATA_UPDATED_EVENT, refreshStocks);
+
+		return () => {
+			window.removeEventListener("storage", refreshStocks);
+			window.removeEventListener(MARKET_DATA_UPDATED_EVENT, refreshStocks);
+		};
+	}, []);
+
+	const visibleStocks = stocks;
+	const earliestDataDate = visibleStocks.reduce<string | null>(
+		(earliest, stock) => {
+			if (stock.date === "--") return earliest;
+			return earliest === null || stock.date < earliest ? stock.date : earliest;
+		},
+		null,
 	);
 
 	return (
@@ -90,18 +43,7 @@ function Home() {
 					}
 				/>
 
-				<nav className="pill-tabs" aria-label="自選分類">
-					{(["全部", "證券", "ETF"] as const).map((item) => (
-						<button
-							type="button"
-							key={item}
-							className={category === item ? "active" : undefined}
-							onClick={() => setCategory(item)}
-						>
-							{item}
-						</button>
-					))}
-				</nav>
+				<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
 
 				<div className="watchlist-toolbar" aria-hidden="true">
 					<span />
@@ -115,27 +57,29 @@ function Home() {
 
 				<section className="watchlist" aria-label="自選清單">
 					{visibleStocks.map((stock) => (
-						<Link
-							className="watchlist-row"
-							key={stock.ticker}
-							to="/stocks/$ticker"
-							params={{ ticker: stock.ticker }}
-						>
-							<span className="security-name">
-								<strong>{stock.name}</strong>
-								<small>{stock.ticker}</small>
-							</span>
-							<span className="sparkline">
-								<Sparkline direction={stock.direction} path={stock.path} />
-							</span>
-							<strong className={`stock-price ${stock.direction}`}>
+						<div className="watchlist-row" key={stock.ticker}>
+							<div className="security-name">
+								<Link to="/stocks/$ticker" params={{ ticker: stock.ticker }}>
+									<strong>{stock.name}</strong>
+									<small>{stock.ticker}</small>
+								</Link>
+							</div>
+							<Link
+								className={`stock-price ${stock.direction}`}
+								to="/stocks/$ticker"
+								params={{ ticker: stock.ticker }}
+							>
 								{stock.price}
-							</strong>
-							<span className={`change-pill ${stock.direction}`}>
+							</Link>
+							<Link
+								className={`change-pill ${stock.direction}`}
+								to="/stocks/$ticker"
+								params={{ ticker: stock.ticker }}
+							>
 								<strong>{stock.change}</strong>
 								<small>{stock.percent}</small>
-							</span>
-						</Link>
+							</Link>
+						</div>
 					))}
 				</section>
 
