@@ -335,7 +335,7 @@ svg { width: 20px; height: 20px; }
 }
 .balance-card small { color: var(--muted); font-size: 12px; }
 .balance-amount { margin-top: 8px; font-size: clamp(29px, 8vw, 33px); line-height: 1; font-weight: 780; font-variant-numeric: tabular-nums; }
-.balance-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.balance-metrics { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .balance-metric { display: grid; gap: 5px; padding: 12px; border-radius: 14px; background: oklch(96% 0.022 70); font-variant-numeric: tabular-nums; }
 .balance-metric strong { font-size: 17px; }
 .account-section { margin-bottom: 16px; }
@@ -353,6 +353,7 @@ svg { width: 20px; height: 20px; }
   color: inherit;
   text-decoration: none;
 }
+.allocation-card--empty { min-height: 110px; justify-content: center; color: var(--muted); font-size: 13px; text-align: center; }
 .allocation-donut {
   position: relative;
   width: 82px;

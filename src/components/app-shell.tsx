@@ -11,6 +11,7 @@ import {
 
 import {
 	authenticateServer,
+	getAuthenticatedServerCredentials,
 	getStoredServerCredentials,
 	InvalidServerAddressError,
 	storeServerCredentials,
@@ -63,6 +64,7 @@ export function MainNavigation({ active }: { active: NavigationKey }) {
 		) {
 			return;
 		}
+		if (getAuthenticatedServerCredentials()) return;
 		event.preventDefault();
 		setIsLoginOpen(true);
 	};

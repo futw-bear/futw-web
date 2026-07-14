@@ -298,14 +298,87 @@ describe("application routes", () => {
 		]);
 	});
 
-	it("renders a standalone account route", async () => {
+	it("loads the authenticated account summary and top allocations", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		const fetcher = vi.spyOn(window, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					data: [
+						{
+							stockNo: "2330",
+							costPrice: 600,
+							tradableQty: 1_000,
+							unrealizedProfit: 15_000,
+							unrealizedLoss: 0,
+						},
+						{
+							stockNo: "0050",
+							costPrice: 200,
+							tradableQty: 1_000,
+							unrealizedProfit: 0,
+							unrealizedLoss: 5_000,
+						},
+						{
+							stockNo: "2412",
+							costPrice: 100,
+							tradableQty: 1_000,
+							unrealizedProfit: 0,
+							unrealizedLoss: 0,
+						},
+						{
+							stockNo: "2884",
+							costPrice: 50,
+							tradableQty: 1_000,
+							unrealizedProfit: 0,
+							unrealizedLoss: 0,
+						},
+					],
+				}),
+				{ status: 200 },
+			),
+		);
+		const { container } = renderRoute("/account");
+		const page = within(container);
+
+		expect(await page.findByRole("heading", { name: "帳戶" })).toBeTruthy();
+		expect(await page.findByText("NT$ 960,000")).toBeTruthy();
+		expect(page.getByText("+10,000")).toBeTruthy();
+		expect(page.getByText("+1.05%")).toBeTruthy();
+		expect(page.getByText("台積電")).toBeTruthy();
+		expect(page.getByText("元大台灣50")).toBeTruthy();
+		expect(page.getByText("中華電")).toBeTruthy();
+		expect(page.getByText("其餘持股")).toBeTruthy();
+		const firstAllocation = container.querySelector(".allocation-row");
+		expect(firstAllocation?.querySelector("strong")?.textContent).toBe(
+			"台積電",
+		);
+		expect(firstAllocation?.querySelector("small")?.textContent).toBe("2330");
+		expect(page.queryByText("本月損益")).toBeNull();
+		expect(
+			page.getByRole("link", { name: "檢視明細" }).getAttribute("href"),
+		).toBe("/holdings");
+		expect(fetcher).toHaveBeenCalledWith(
+			"https://data.example.com/proxy/trading/account-management/unrealized-gains-and-loses",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer secret-token",
+				}),
+			}),
+		);
+	});
+
+	it("shows a login-required state when the account URL is opened directly", async () => {
+		const fetcher = vi.spyOn(window, "fetch");
 		renderRoute("/account");
 
-		expect(await screen.findByRole("heading", { name: "帳戶" })).toBeTruthy();
-		expect(screen.getByText("NT$ 842,360")).toBeTruthy();
-		expect(
-			screen.getByRole("link", { name: "檢視明細" }).getAttribute("href"),
-		).toBe("/holdings");
+		expect((await screen.findByRole("alert")).textContent).toContain(
+			"請先登入帳戶",
+		);
+		expect(fetcher).not.toHaveBeenCalled();
 	});
 
 	it("authenticates through the account navigation modal", async () => {
@@ -343,6 +416,24 @@ describe("application routes", () => {
 			}),
 		);
 		expect(await page.findByRole("heading", { name: "帳戶" })).toBeTruthy();
+	});
+
+	it("opens the account directly when credentials are already stored", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		vi.spyOn(window, "fetch").mockResolvedValue(
+			new Response(JSON.stringify({ data: [] }), { status: 200 }),
+		);
+		const { container } = renderRoute("/");
+		const page = within(container);
+
+		fireEvent.click(await page.findByRole("link", { name: "帳戶" }));
+
+		expect(await page.findByRole("heading", { name: "帳戶" })).toBeTruthy();
+		expect(page.queryByRole("dialog", { name: "登入帳戶" })).toBeNull();
 	});
 
 	it("searches stored securities by partial ticker and name", async () => {
