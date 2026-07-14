@@ -47,7 +47,7 @@ beforeEach(() => {
 			},
 			{
 				code: "0050",
-				Date: "1140704",
+				Date: "1140705",
 				OpeningPrice: 195.95,
 				ClosingPrice: 196.8,
 			},
@@ -65,6 +65,7 @@ describe("application routes", () => {
 
 		expect(screen.getByText("元大台灣50")).toBeTruthy();
 		expect(screen.getByText("鴻海")).toBeTruthy();
+		expect(screen.getByText("資料更新於 2025/07/04")).toBeTruthy();
 	});
 
 	it("renders a standalone account route", async () => {

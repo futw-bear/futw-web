@@ -66,6 +66,7 @@ describe("market indexes", () => {
 		]);
 		expect(indexes[0]).toEqual(
 			expect.objectContaining({
+				date: "2026/07/14",
 				value: "23,184.62",
 				change: "+111.04",
 				percent: "+0.48%",
@@ -73,6 +74,7 @@ describe("market indexes", () => {
 		);
 		expect(indexes[1]).toEqual(
 			expect.objectContaining({
+				date: "2026/07/13",
 				value: "276.84",
 			}),
 		);

@@ -8,6 +8,7 @@ import {
 } from "./daily-sync";
 import {
 	getPricesStorageKey,
+	PRICES_REFRESH_HOUR,
 	PRICES_SYNCED_AT_KEY,
 	syncPricesIfDue,
 } from "./prices-sync";
@@ -26,25 +27,25 @@ function createMemoryStorage() {
 }
 
 describe("last business day price synchronization", () => {
-	it("calculates the 14:00 Asia/Taipei refresh boundary", () => {
+	it("calculates the 10:00 Asia/Taipei refresh boundary", () => {
 		expect(
 			getMostRecentTaipeiRefreshAt(
-				new Date("2026-07-13T05:59:59.000Z"),
-				14,
+				new Date("2026-07-13T01:59:59.000Z"),
+				PRICES_REFRESH_HOUR,
 			).toISOString(),
-		).toBe("2026-07-12T06:00:00.000Z");
+		).toBe("2026-07-12T02:00:00.000Z");
 		expect(
 			getMostRecentTaipeiRefreshAt(
-				new Date("2026-07-13T06:00:00.000Z"),
-				14,
+				new Date("2026-07-13T02:00:00.000Z"),
+				PRICES_REFRESH_HOUR,
 			).toISOString(),
-		).toBe("2026-07-13T06:00:00.000Z");
+		).toBe("2026-07-13T02:00:00.000Z");
 		expect(
 			getNextTaipeiRefreshAt(
-				new Date("2026-07-13T06:00:00.000Z"),
-				14,
+				new Date("2026-07-13T02:00:00.000Z"),
+				PRICES_REFRESH_HOUR,
 			).toISOString(),
-		).toBe("2026-07-14T06:00:00.000Z");
+		).toBe("2026-07-14T02:00:00.000Z");
 	});
 
 	it("downloads TSE and OTC prices on first entry", async () => {
@@ -78,11 +79,11 @@ describe("last business day price synchronization", () => {
 		expect(storage.getItem(PRICES_SYNCED_AT_KEY)).toBe(now.toISOString());
 	});
 
-	it("does not download again before the next 14:00 boundary", async () => {
+	it("does not download again before the next 10:00 boundary", async () => {
 		const storage = createMemoryStorage();
 		storage.setItem(getPricesStorageKey("TSE"), "[]");
 		storage.setItem(getPricesStorageKey("OTC"), "[]");
-		storage.setItem(PRICES_SYNCED_AT_KEY, "2026-07-13T06:30:00.000Z");
+		storage.setItem(PRICES_SYNCED_AT_KEY, "2026-07-13T02:30:00.000Z");
 		const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => {
 			return new Response("[]", {
 				status: 200,
@@ -98,7 +99,7 @@ describe("last business day price synchronization", () => {
 		expect(fetcher).not.toHaveBeenCalled();
 
 		await syncPricesIfDue({
-			now: new Date("2026-07-14T06:00:00.000Z"),
+			now: new Date("2026-07-14T02:00:00.000Z"),
 			storage,
 			fetcher,
 		});

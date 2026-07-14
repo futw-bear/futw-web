@@ -16,6 +16,7 @@ const EMPTY_INDEXES: MarketIndex[] = [
 ].map(({ name, compact }) => ({
 	name,
 	compact,
+	date: "--",
 	value: "--",
 	change: "--",
 	percent: "--",
@@ -59,6 +60,14 @@ function MarketPage() {
 		};
 	}, []);
 
+	const earliestDataDate = indexes.reduce<string | null>(
+		(earliest, index) => {
+			if (index.date === "--") return earliest;
+			return earliest === null || index.date < earliest ? index.date : earliest;
+		},
+		null,
+	);
+
 	return (
 		<>
 			<main className="app-page market-page">
@@ -70,6 +79,7 @@ function MarketPage() {
 						</button>
 					}
 				/>
+				<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
 				{error && (
 					<div className="market-data-state" role="alert">
 						市場指數暫時無法取得，請稍後再試。

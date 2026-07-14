@@ -11,6 +11,7 @@ export type PriceMarket = (typeof PRICE_MARKETS)[number];
 
 export const PRICES_SYNCED_AT_KEY = "prices:last-synced-at";
 export const PRICES_PERIODIC_SYNC_TAG = "refresh-prices";
+export const PRICES_REFRESH_HOUR = 10;
 
 type Fetcher = typeof fetch;
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
@@ -34,7 +35,7 @@ export function isPricesRefreshDue(
 	lastSyncedAt: string | null,
 	now = new Date(),
 ) {
-	return isRefreshDue(lastSyncedAt, now, 14);
+	return isRefreshDue(lastSyncedAt, now, PRICES_REFRESH_HOUR);
 }
 
 export function storePricesSnapshot(
@@ -116,7 +117,8 @@ function scheduleForegroundRefresh(
 ) {
 	const delay = Math.max(
 		0,
-		getNextTaipeiRefreshAt(new Date(), 14).getTime() - Date.now(),
+		getNextTaipeiRefreshAt(new Date(), PRICES_REFRESH_HOUR).getTime() -
+			Date.now(),
 	);
 
 	window.setTimeout(() => {

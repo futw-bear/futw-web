@@ -6,6 +6,7 @@ type UnknownRecord = Record<string, unknown>;
 
 export type MarketIndex = {
 	name: string;
+	date: string;
 	value: string;
 	change: string;
 	percent: string;
@@ -140,6 +141,11 @@ function getDateKey(date: CalendarDate | null) {
 	return date ? date.year * 10000 + date.month * 100 + date.day : -1;
 }
 
+function formatDate(date: CalendarDate | null) {
+	if (!date) return "--";
+	return `${date.year}/${String(date.month).padStart(2, "0")}/${String(date.day).padStart(2, "0")}`;
+}
+
 function formatValue(value: number | null) {
 	if (value === null) return "--";
 	return new Intl.NumberFormat("en-US", {
@@ -170,6 +176,7 @@ function toMarketIndex(
 			: null);
 	return {
 		name,
+		date: formatDate(parseDate(firstValue(record, DATE_FIELDS))),
 		value: formatValue(value),
 		change: formatSigned(change),
 		percent: formatSigned(percent, "%"),

@@ -11,6 +11,7 @@ const PRICES_CACHE = "futw-prices-v1";
 const PRICES_CACHE_KEY = "/__futw/prices";
 const PRICES_METADATA_KEY = "/__futw/prices-metadata";
 const PRICES_PERIODIC_SYNC_TAG = "refresh-prices";
+const PRICES_REFRESH_HOUR = 10;
 const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -167,7 +168,8 @@ async function refreshPricesIfDue() {
 	const lastSyncTime = lastSyncedAt ? Date.parse(lastSyncedAt) : Number.NaN;
 	if (
 		!Number.isNaN(lastSyncTime) &&
-		lastSyncTime >= getMostRecentTaipeiRefreshAt(new Date(), 14)
+		lastSyncTime >=
+			getMostRecentTaipeiRefreshAt(new Date(), PRICES_REFRESH_HOUR)
 	) {
 		return;
 	}

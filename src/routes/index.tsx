@@ -23,6 +23,13 @@ function Home() {
 	}, []);
 
 	const visibleStocks = stocks;
+	const earliestDataDate = visibleStocks.reduce<string | null>(
+		(earliest, stock) => {
+			if (stock.date === "--") return earliest;
+			return earliest === null || stock.date < earliest ? stock.date : earliest;
+		},
+		null,
+	);
 
 	return (
 		<>
@@ -35,6 +42,8 @@ function Home() {
 						</Link>
 					}
 				/>
+
+				<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
 
 				<div className="watchlist-toolbar" aria-hidden="true">
 					<span />
