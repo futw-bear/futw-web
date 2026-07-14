@@ -85,6 +85,7 @@ bun --bun run build
 
 ## Contribution Guidelines
 
+- Use git only for read-only operations.
 - Name every branch using the `FUTW-{code}/{feature_name} format.
 - Follow the Conventional Commits for all Git commit messages.
 - Write pull request title formats `[FUTW-{code}] {feature_name}` in English, and descriptions in Traditional Chinese.
