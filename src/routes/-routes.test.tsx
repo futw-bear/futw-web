@@ -140,32 +140,71 @@ describe("application routes", () => {
 			"https://data.example.com",
 		);
 		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
-		const fetcher = vi.spyOn(window, "fetch").mockResolvedValue(
-			new Response(
-				JSON.stringify({
-					name: "台積電",
-					symbol: "2330",
-					closePrice: 1035,
-					change: 15,
-					changePercent: 1.47,
-					highPrice: 1040,
-					lowPrice: 1020,
-					openPrice: 1025,
-					previousClose: 1020,
-				}),
-				{ status: 200 },
-			),
-		);
+		const fetcher = vi
+			.spyOn(window, "fetch")
+			.mockImplementation(async (input) => {
+				const url = String(input);
+				if (url.includes("/intraday/quote/")) {
+					return new Response(
+						JSON.stringify({
+							name: "台積電",
+							symbol: "2330",
+							closePrice: 1035,
+							change: 15,
+							changePercent: 1.47,
+							highPrice: 1040,
+							lowPrice: 1020,
+							openPrice: 1025,
+							previousClose: 1020,
+							isOpen: true,
+							isClose: false,
+						}),
+						{
+							status: 200,
+						},
+					);
+				}
+				if (url.includes("/intraday/candles/")) {
+					return new Response(
+						JSON.stringify([
+							{
+								time: "2026-07-14T09:00:00+08:00",
+								open: 1025,
+								high: 1040,
+								low: 1020,
+								close: 1035,
+							},
+						]),
+						{ status: 200 },
+					);
+				}
+				return new Response(
+					JSON.stringify({
+						name: "台積電",
+						symbol: "2330",
+						closePrice: 1035,
+						change: 15,
+						changePercent: 1.47,
+						highPrice: 1040,
+						lowPrice: 1020,
+						openPrice: 1025,
+						previousClose: 1020,
+					}),
+					{ status: 200 },
+				);
+			});
 		const { container } = renderRoute("/stocks/2330");
 		const page = within(container);
 
 		expect(await page.findByRole("heading", { name: "台積電" })).toBeTruthy();
-		expect(page.getByText("1,035.00")).toBeTruthy();
-		expect(page.getByText("+15.00 +1.47%")).toBeTruthy();
-		expect(page.getByText("1,040.00")).toBeTruthy();
-		expect(page.getByText("1,025.00")).toBeTruthy();
-		expect(page.getAllByText("1,020.00")).toHaveLength(2);
-		expect(page.getByRole("img", { name: "台積電五日股價走勢" })).toBeTruthy();
+		const summary = within(page.getByRole("region", { name: "股票報價" }));
+		expect(summary.getByText("1,035.00")).toBeTruthy();
+		expect(summary.getByText("+15.00 +1.47%")).toBeTruthy();
+		expect(summary.getByText("1,040.00")).toBeTruthy();
+		expect(summary.getByText("1,025.00")).toBeTruthy();
+		expect(summary.getAllByText("1,020.00")).toHaveLength(2);
+		expect(await page.findByRole("img", { name: "5日線圖" })).toBeTruthy();
+		expect(container.querySelector(".five-day-price-line")).toBeTruthy();
 		expect(fetcher).toHaveBeenCalledWith(
 			"https://data.example.com/proxy/market-data/intraday/quote/2330",
 			expect.objectContaining({
@@ -173,6 +212,10 @@ describe("application routes", () => {
 					Authorization: "Bearer secret-token",
 				}),
 			}),
+		);
+		expect(fetcher).toHaveBeenCalledWith(
+			"https://data.example.com/proxy/market-data/intraday/candles/2330?timeframe=1",
+			expect.any(Object),
 		);
 	});
 

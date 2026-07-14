@@ -8,6 +8,8 @@ export type IntradayQuote = {
 	closePrice: number | null;
 	change: number | null;
 	changePercent: number | null;
+	isOpen: boolean;
+	isClose: boolean;
 };
 
 export type IntradayQuoteDisplay = {
@@ -23,7 +25,11 @@ function isRecord(value: unknown): value is UnknownRecord {
 
 function hasQuoteFields(record: UnknownRecord) {
 	return (
-		"closePrice" in record || "change" in record || "changePercent" in record
+		"closePrice" in record ||
+		"change" in record ||
+		"changePercent" in record ||
+		"isOpen" in record ||
+		"isClose" in record
 	);
 }
 
@@ -50,6 +56,10 @@ function parseNumber(value: unknown) {
 	if (typeof value !== "string") return null;
 	const parsed = Number(value.replaceAll(",", "").replace("%", "").trim());
 	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseBoolean(value: unknown) {
+	return value === true || value === 1 || value === "1" || value === "true";
 }
 
 function formatPrice(value: number | null) {
@@ -108,6 +118,8 @@ export async function downloadIntradayQuote(
 		closePrice: parseNumber(record?.closePrice),
 		change: parseNumber(record?.change),
 		changePercent: parseNumber(record?.changePercent),
+		isOpen: parseBoolean(record?.isOpen),
+		isClose: parseBoolean(record?.isClose),
 	};
 }
 
