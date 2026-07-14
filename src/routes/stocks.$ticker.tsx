@@ -15,10 +15,31 @@ import {
 } from "#/lib/candles";
 import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
 import { downloadStockQuote, type StockQuote } from "#/lib/stock-quote";
+import { getStoredWatchlist } from "#/lib/watchlist";
 
 export const Route = createFileRoute("/stocks/$ticker")({
 	component: StockDetailPage,
 });
+
+function formatTaipeiDateTime(timestampMicroseconds: number | null) {
+	if (timestampMicroseconds === null) return null;
+	const date = new Date(timestampMicroseconds / 1_000);
+	if (Number.isNaN(date.getTime())) return null;
+
+	const parts = new Intl.DateTimeFormat("en-GB", {
+		timeZone: "Asia/Taipei",
+		month: "2-digit",
+		day: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hourCycle: "h23",
+	}).formatToParts(date);
+	const value = (type: Intl.DateTimeFormatPartTypes) =>
+		parts.find((part) => part.type === type)?.value ?? "--";
+
+	return `${value("month")}/${value("day")} ${value("hour")}:${value("minute")}:${value("second")}`;
+}
 
 function StockDetailPage() {
 	const { ticker } = Route.useParams();
@@ -28,6 +49,8 @@ function StockDetailPage() {
 	const [quote, setQuote] = useState<StockQuote>({
 		name: ticker,
 		symbol: ticker,
+		isClose: false,
+		lastUpdated: null,
 		closePrice: "--",
 		change: "--",
 		changePercent: "--",
@@ -48,10 +71,16 @@ function StockDetailPage() {
 		serverCredentials !== null,
 	);
 	const [candlesError, setCandlesError] = useState(false);
-	const [favorite, setFavorite] = useState(true);
+	const favorite = getStoredWatchlist().includes(ticker);
 	const isCandleMinuteTimeframe = CANDLE_MINUTE_TIMEFRAMES.some(
 		(minuteTimeframe) => minuteTimeframe === timeframe,
 	);
+	const quoteUpdatedAt = formatTaipeiDateTime(quote.lastUpdated);
+	const quoteStatus = isLoading
+		? "正在載入即時報價…"
+		: quote.isClose
+			? `已收盤 ${quoteUpdatedAt ?? "--"}（台北）`
+			: "即時報價";
 
 	useEffect(() => {
 		if (!serverCredentials) return;
@@ -143,10 +172,20 @@ function StockDetailPage() {
 					aria-busy={isLoading}
 				>
 					<div className="stock-name">
+						<span
+							className={`stock-favorite-indicator ${favorite ? "selected" : ""}`}
+							role="img"
+							aria-label={favorite ? "已加入自選列表" : "未加入自選列表"}
+						>
+							<Heart
+								fill={favorite ? "currentColor" : "none"}
+								aria-hidden="true"
+							/>
+						</span>
 						<h1>{quote.name}</h1>
 						<span>{quote.symbol}</span>
 					</div>
-					<p>{isLoading ? "正在載入即時報價…" : "即時報價"}</p>
+					<p>{quoteStatus}</p>
 					<div className="quote-row">
 						<div className={`main-quote ${quote.direction}`}>
 							<strong>{quote.closePrice}</strong>

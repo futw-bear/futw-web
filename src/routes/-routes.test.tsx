@@ -198,6 +198,11 @@ describe("application routes", () => {
 
 		expect(await page.findByRole("heading", { name: "台積電" })).toBeTruthy();
 		const summary = within(page.getByRole("region", { name: "股票報價" }));
+		const favorite = summary.getByRole("img", { name: "已加入自選列表" });
+		expect(favorite.querySelector("svg")?.getAttribute("fill")).toBe(
+			"currentColor",
+		);
+		expect(summary.getByText("即時報價")).toBeTruthy();
 		expect(summary.getByText("1,035.00")).toBeTruthy();
 		expect(summary.getByText("+15.00 +1.47%")).toBeTruthy();
 		expect(summary.getByText("1,040.00")).toBeTruthy();
@@ -217,6 +222,40 @@ describe("application routes", () => {
 			"https://data.example.com/proxy/market-data/intraday/candles/2330?timeframe=1",
 			expect.any(Object),
 		);
+	});
+
+	it("shows the Taipei close time and the non-watchlist heart state", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		localStorage.setItem("watchlist", JSON.stringify(["2317"]));
+		vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+			if (String(input).includes("/intraday/quote/")) {
+				return new Response(
+					JSON.stringify({
+						name: "台積電",
+						symbol: "2330",
+						isOpen: false,
+						isClose: true,
+						lastUpdated: 1_784_007_045_000_000,
+					}),
+					{ status: 200 },
+				);
+			}
+			return new Response("[]", { status: 200 });
+		});
+		const { container } = renderRoute("/stocks/2330");
+		const summary = within(
+			await within(container).findByRole("region", { name: "股票報價" }),
+		);
+
+		expect(
+			await summary.findByText("已收盤 07/14 13:30:45（台北）"),
+		).toBeTruthy();
+		const favorite = summary.getByRole("img", { name: "未加入自選列表" });
+		expect(favorite.querySelector("svg")?.getAttribute("fill")).toBe("none");
 	});
 
 	it("uses the five live market index quotes when authenticated", async () => {

@@ -10,6 +10,8 @@ describe("stock quote", () => {
 					data: {
 						name: "台積電",
 						symbol: "2330",
+						isClose: true,
+						lastUpdated: 1_784_007_045_000_000,
 						closePrice: 1035,
 						change: 15,
 						changePercent: 1.47,
@@ -44,6 +46,8 @@ describe("stock quote", () => {
 		expect(quote).toEqual({
 			name: "台積電",
 			symbol: "2330",
+			isClose: true,
+			lastUpdated: 1_784_007_045_000_000,
 			closePrice: "1,035.00",
 			change: "+15.00",
 			changePercent: "+1.47%",

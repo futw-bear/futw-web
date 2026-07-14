@@ -6,6 +6,8 @@ type UnknownRecord = Record<string, unknown>;
 export type StockQuote = {
 	name: string;
 	symbol: string;
+	isClose: boolean;
+	lastUpdated: number | null;
 	closePrice: string;
 	change: string;
 	changePercent: string;
@@ -47,6 +49,15 @@ function parseNumber(value: unknown) {
 	if (typeof value !== "string") return null;
 	const parsed = Number(value.replaceAll(",", "").replace("%", "").trim());
 	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseBoolean(value: unknown) {
+	return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function parseTimestamp(value: unknown) {
+	const timestamp = parseNumber(value);
+	return timestamp !== null && timestamp >= 0 ? timestamp : null;
 }
 
 function formatPrice(value: unknown) {
@@ -96,6 +107,8 @@ export async function downloadStockQuote(
 	return {
 		name: normalizeText(record.name, code),
 		symbol: normalizeText(record.symbol, code),
+		isClose: parseBoolean(record.isClose),
+		lastUpdated: parseTimestamp(record.lastUpdated),
 		closePrice: formatPrice(record.closePrice),
 		change: formatSigned(change),
 		changePercent: formatSigned(parseNumber(record.changePercent), "%"),
