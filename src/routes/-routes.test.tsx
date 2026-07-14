@@ -82,6 +82,82 @@ describe("application routes", () => {
 		expect(screen.getByText("資料更新於 2025/07/04")).toBeTruthy();
 	});
 
+	it("uses live watchlist quotes and hides the data hint when authenticated", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		const fetcher = vi
+			.spyOn(window, "fetch")
+			.mockImplementation(async (input) => {
+				const code = String(input).split("/").at(-1);
+				return new Response(
+					JSON.stringify({
+						closePrice: code === "2330" ? 1048.5 : Number(code),
+						change: code === "2330" ? 13.5 : 0,
+						changePercent: code === "2330" ? 1.3 : 0,
+					}),
+					{ status: 200 },
+				);
+			});
+		const { container } = renderRoute("/");
+		const page = within(container);
+
+		expect(page.queryByText(/資料更新於/)).toBeNull();
+		expect(await page.findByText("1,048.50")).toBeTruthy();
+		expect(page.getByText("+13.50")).toBeTruthy();
+		expect(page.getByText("+1.30%")).toBeTruthy();
+		expect(fetcher).toHaveBeenCalledWith(
+			"https://data.example.com/proxy/market-data/intraday/quote/2330",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer secret-token",
+				}),
+			}),
+		);
+	});
+
+	it("uses the five live market index quotes when authenticated", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		const closePrices: Record<string, number> = {
+			IX0001: 25_123.45,
+			IX0043: 275.2,
+			IX0027: 1_401.1,
+			IX0039: 2_201.2,
+			IX0028: 731.8,
+		};
+		const fetcher = vi
+			.spyOn(window, "fetch")
+			.mockImplementation(async (input) => {
+				const code = String(input).split("/").at(-1) ?? "";
+				return new Response(
+					JSON.stringify({
+						closePrice: closePrices[code],
+						change: 10,
+						changePercent: 0.5,
+					}),
+					{ status: 200 },
+				);
+			});
+		const { container } = renderRoute("/market");
+		const page = within(container);
+
+		expect(page.queryByText(/資料更新於/)).toBeNull();
+		expect(await page.findByText("25,123.45")).toBeTruthy();
+		expect(fetcher.mock.calls.map(([input]) => String(input))).toEqual([
+			"https://data.example.com/proxy/market-data/intraday/quote/IX0001",
+			"https://data.example.com/proxy/market-data/intraday/quote/IX0043",
+			"https://data.example.com/proxy/market-data/intraday/quote/IX0027",
+			"https://data.example.com/proxy/market-data/intraday/quote/IX0039",
+			"https://data.example.com/proxy/market-data/intraday/quote/IX0028",
+		]);
+	});
+
 	it("renders a standalone account route", async () => {
 		renderRoute("/account");
 

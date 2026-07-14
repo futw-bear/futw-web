@@ -3,24 +3,74 @@ import { ArrowUpDown, Pencil, Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
+import {
+	downloadIntradayQuotes,
+	toIntradayQuoteDisplay,
+} from "#/lib/intraday-quotes";
+import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
 import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
 import { getWatchlistStocks } from "#/lib/watchlist";
 
 export const Route = createFileRoute("/")({ component: Home });
 
+function resetStockQuote(stock: ReturnType<typeof getWatchlistStocks>[number]) {
+	return {
+		...stock,
+		price: "--",
+		change: "--",
+		percent: "--",
+		direction: "neutral" as const,
+	};
+}
+
 function Home() {
-	const [stocks, setStocks] = useState(() => getWatchlistStocks());
+	const [serverCredentials] = useState(() =>
+		getAuthenticatedServerCredentials(),
+	);
+	const isAuthenticated = serverCredentials !== null;
+	const [stocks, setStocks] = useState(() => {
+		const storedStocks = getWatchlistStocks();
+		return isAuthenticated ? storedStocks.map(resetStockQuote) : storedStocks;
+	});
+	const [liveQuoteError, setLiveQuoteError] = useState(false);
 
 	useEffect(() => {
-		const refreshStocks = () => setStocks(getWatchlistStocks());
+		let cancelled = false;
+		const refreshStocks = () => {
+			const storedStocks = getWatchlistStocks();
+			setStocks(
+				serverCredentials ? storedStocks.map(resetStockQuote) : storedStocks,
+			);
+			setLiveQuoteError(false);
+			if (!serverCredentials) return;
+
+			void downloadIntradayQuotes(
+				storedStocks.map(({ ticker }) => ticker),
+				serverCredentials,
+			)
+				.then((quotes) => {
+					if (cancelled) return;
+					setStocks(
+						storedStocks.map((stock, index) => ({
+							...stock,
+							...toIntradayQuoteDisplay(quotes[index]),
+						})),
+					);
+				})
+				.catch(() => {
+					if (!cancelled) setLiveQuoteError(true);
+				});
+		};
+		refreshStocks();
 		window.addEventListener("storage", refreshStocks);
 		window.addEventListener(MARKET_DATA_UPDATED_EVENT, refreshStocks);
 
 		return () => {
+			cancelled = true;
 			window.removeEventListener("storage", refreshStocks);
 			window.removeEventListener(MARKET_DATA_UPDATED_EVENT, refreshStocks);
 		};
-	}, []);
+	}, [serverCredentials]);
 
 	const visibleStocks = stocks;
 	const earliestDataDate = visibleStocks.reduce<string | null>(
@@ -43,7 +93,14 @@ function Home() {
 					}
 				/>
 
-				<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
+				{!isAuthenticated && (
+					<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
+				)}
+				{liveQuoteError && (
+					<div className="market-data-state" role="alert">
+						即時行情暫時無法取得，請稍後再試。
+					</div>
+				)}
 
 				<div className="watchlist-toolbar" aria-hidden="true">
 					<span />

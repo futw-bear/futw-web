@@ -5,6 +5,11 @@ export const AUTH_CHECK_PATH = "/proxy/market-data/intraday/tickers";
 type Fetcher = typeof fetch;
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
 
+export type ServerCredentials = {
+	serverAddress: string;
+	authPassword: string;
+};
+
 export class InvalidServerAddressError extends Error {
 	constructor() {
 		super("The server address must be a valid HTTP or HTTPS URL.");
@@ -58,11 +63,20 @@ export async function authenticateServer({
 
 export function getStoredServerCredentials(
 	storage: StorageLike = window.localStorage,
-) {
+): ServerCredentials {
 	return {
 		serverAddress: storage.getItem(SERVER_ADDRESS_STORAGE_KEY) ?? "",
 		authPassword: storage.getItem(AUTH_PASSWORD_STORAGE_KEY) ?? "",
 	};
+}
+
+export function getAuthenticatedServerCredentials(
+	storage: StorageLike = window.localStorage,
+) {
+	const credentials = getStoredServerCredentials(storage);
+	return credentials.serverAddress.trim() && credentials.authPassword.trim()
+		? credentials
+		: null;
 }
 
 export function storeServerCredentials(

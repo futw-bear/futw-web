@@ -3,7 +3,12 @@ import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
-import { downloadMarketIndexes, type MarketIndex } from "#/lib/market-index";
+import {
+	downloadIntradayMarketIndexes,
+	downloadMarketIndexes,
+	type MarketIndex,
+} from "#/lib/market-index";
+import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
 
 export const Route = createFileRoute("/market")({ component: MarketPage });
 
@@ -42,10 +47,17 @@ function MarketPage() {
 	const [indexes, setIndexes] = useState(EMPTY_INDEXES);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState(false);
+	const [serverCredentials] = useState(() =>
+		getAuthenticatedServerCredentials(),
+	);
+	const isAuthenticated = serverCredentials !== null;
 
 	useEffect(() => {
 		let cancelled = false;
-		void downloadMarketIndexes()
+		const indexesPromise = serverCredentials
+			? downloadIntradayMarketIndexes(serverCredentials)
+			: downloadMarketIndexes();
+		void indexesPromise
 			.then((downloadedIndexes) => {
 				if (!cancelled) setIndexes(downloadedIndexes);
 			})
@@ -58,15 +70,12 @@ function MarketPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, []);
+	}, [serverCredentials]);
 
-	const earliestDataDate = indexes.reduce<string | null>(
-		(earliest, index) => {
-			if (index.date === "--") return earliest;
-			return earliest === null || index.date < earliest ? index.date : earliest;
-		},
-		null,
-	);
+	const earliestDataDate = indexes.reduce<string | null>((earliest, index) => {
+		if (index.date === "--") return earliest;
+		return earliest === null || index.date < earliest ? index.date : earliest;
+	}, null);
 
 	return (
 		<>
@@ -79,7 +88,9 @@ function MarketPage() {
 						</button>
 					}
 				/>
-				<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
+				{!isAuthenticated && (
+					<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
+				)}
 				{error && (
 					<div className="market-data-state" role="alert">
 						市場指數暫時無法取得，請稍後再試。
