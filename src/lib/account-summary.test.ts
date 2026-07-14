@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	ACCOUNT_ALLOCATION_COLORS,
+	ACCOUNT_OTHER_ALLOCATION_COLOR,
 	ACCOUNT_UNREALIZED_GAINS_PATH,
 	downloadAccountSummary,
 	summarizeAccountPositions,
@@ -61,6 +63,24 @@ describe("account summary", () => {
 			{ code: "其他", value: 49_900 },
 		]);
 		expect(summary.allocations[0]?.percentage).toBeCloseTo(63.7899);
+		expect(summary.detailAllocations.map(({ code }) => code)).toEqual([
+			"2330",
+			"0050",
+			"2412",
+			"2884",
+		]);
+		expect(summary.holdings[0]).toEqual({
+			code: "2330",
+			name: "台積電",
+			shares: 1_000,
+			value: 612_000,
+		});
+	});
+
+	it("uses the requested fourth and fifth detail chart colors", () => {
+		expect(ACCOUNT_ALLOCATION_COLORS[3]).toBe("#768E8B");
+		expect(ACCOUNT_ALLOCATION_COLORS[4]).toBe("#947D9D");
+		expect(ACCOUNT_OTHER_ALLOCATION_COLOR).toBe("oklch(88% 0.018 70)");
 	});
 
 	it("omits the profit and loss rate when the total cost is zero", () => {

@@ -381,6 +381,63 @@ describe("application routes", () => {
 		expect(fetcher).not.toHaveBeenCalled();
 	});
 
+	it("requires login when the holdings URL is opened directly", async () => {
+		const fetcher = vi.spyOn(window, "fetch");
+		const { container } = renderRoute("/holdings");
+		const page = within(container);
+
+		expect((await page.findByRole("alert")).textContent).toContain(
+			"請先登入帳戶",
+		);
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
+	it("loads authenticated holdings and the six-segment detail allocation", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		const fetcher = vi.spyOn(window, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					data: [
+						{ stockNo: "2330", costPrice: 600, tradableQty: 1_000 },
+						{ stockNo: "0050", costPrice: 200, tradableQty: 1_000 },
+						{ stockNo: "2412", costPrice: 100, tradableQty: 1_000 },
+						{ stockNo: "2317", costPrice: 80, tradableQty: 1_000 },
+						{ stockNo: "2454", costPrice: 60, tradableQty: 1_000 },
+						{ stockNo: "2884", costPrice: 50, tradableQty: 1_000 },
+					],
+				}),
+				{ status: 200 },
+			),
+		);
+		const { container } = renderRoute("/holdings");
+		const page = within(container);
+
+		expect(await page.findByText("1,090,000")).toBeTruthy();
+		const allocationChart = page.getByRole("img", { name: /資產配置/ });
+		expect(allocationChart).toBeTruthy();
+		expect(allocationChart.getAttribute("style")).toContain("#768E8B");
+		expect(allocationChart.getAttribute("style")).toContain("#947D9D");
+		expect(
+			container.querySelectorAll(".distribution-legend > span"),
+		).toHaveLength(6);
+		expect(container.querySelectorAll(".holding-row")).toHaveLength(6);
+		expect(page.getAllByText("台積電")).toHaveLength(2);
+		expect(page.getAllByText("聯發科")).toHaveLength(2);
+		expect(page.queryByText("富邦台 50")).toBeNull();
+		expect(fetcher).toHaveBeenCalledWith(
+			"https://data.example.com/proxy/trading/account-management/unrealized-gains-and-loses",
+			expect.objectContaining({
+				headers: expect.objectContaining({
+					Authorization: "Bearer secret-token",
+				}),
+			}),
+		);
+	});
+
 	it("authenticates through the account navigation modal", async () => {
 		const fetcher = vi
 			.spyOn(window, "fetch")

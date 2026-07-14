@@ -3,6 +3,15 @@ import { normalizeServerAddress, type ServerCredentials } from "./server-auth";
 export const ACCOUNT_UNREALIZED_GAINS_PATH =
 	"/proxy/trading/account-management/unrealized-gains-and-loses";
 
+export const ACCOUNT_ALLOCATION_COLORS = [
+	"var(--gain)",
+	"var(--accent)",
+	"oklch(72% 0.08 80)",
+	"#768E8B",
+	"#947D9D",
+] as const;
+export const ACCOUNT_OTHER_ALLOCATION_COLOR = "oklch(88% 0.018 70)";
+
 type Fetcher = typeof fetch;
 type UnknownRecord = Record<string, unknown>;
 
@@ -22,12 +31,30 @@ export type AccountAllocation = {
 	percentage: number;
 };
 
+export type AccountHolding = {
+	code: string;
+	name: string;
+	shares: number;
+	value: number;
+};
+
+export function getAccountAllocationColor(
+	allocation: Pick<AccountAllocation, "code">,
+	index: number,
+) {
+	return allocation.code === "其他"
+		? ACCOUNT_OTHER_ALLOCATION_COLOR
+		: (ACCOUNT_ALLOCATION_COLORS[index] ?? ACCOUNT_OTHER_ALLOCATION_COLOR);
+}
+
 export type AccountSummary = {
 	totalCost: number;
 	totalAssets: number;
 	unrealizedProfitLoss: number;
 	unrealizedProfitLossRate: number | null;
 	allocations: AccountAllocation[];
+	detailAllocations: AccountAllocation[];
+	holdings: AccountHolding[];
 };
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -93,43 +120,53 @@ export function summarizeAccountPositions(payload: unknown): AccountSummary {
 		0,
 	);
 	const totalAssets = totalCost + unrealizedProfitLoss;
-	const amountsByCode = new Map<
-		string,
-		Omit<AccountAllocation, "percentage">
-	>();
+	const holdingsByCode = new Map<string, AccountHolding>();
 
 	for (const position of positions) {
 		const value =
 			position.costPrice * position.tradableQty +
 			position.unrealizedProfit -
 			position.unrealizedLoss;
-		if (value <= 0) continue;
-		const existing = amountsByCode.get(position.code);
+		const existing = holdingsByCode.get(position.code);
 		if (existing) {
 			existing.value += value;
+			existing.shares += position.tradableQty;
 		} else {
-			amountsByCode.set(position.code, {
+			holdingsByCode.set(position.code, {
 				code: position.code,
 				name: position.name,
+				shares: position.tradableQty,
 				value,
 			});
 		}
 	}
 
-	const sortedAllocations = [...amountsByCode.values()].sort(
-		(left, right) => right.value - left.value,
-	);
-	const topAllocations = sortedAllocations.slice(0, 3);
-	const otherValue = sortedAllocations
-		.slice(3)
-		.reduce((sum, allocation) => sum + allocation.value, 0);
-	if (otherValue > 0) {
-		topAllocations.push({
-			code: "其他",
-			name: "其餘持股",
-			value: otherValue,
-		});
-	}
+	const holdings = [...holdingsByCode.values()]
+		.filter((holding) => holding.value > 0 || holding.shares > 0)
+		.sort((left, right) => right.value - left.value);
+	const positiveHoldings = holdings.filter((holding) => holding.value > 0);
+	const createAllocations = (limit: number) => {
+		const topAllocations = positiveHoldings.slice(0, limit).map((holding) => ({
+			code: holding.code,
+			name: holding.name,
+			value: holding.value,
+		}));
+		const otherValue = positiveHoldings
+			.slice(limit)
+			.reduce((sum, holding) => sum + holding.value, 0);
+		if (otherValue > 0) {
+			topAllocations.push({
+				code: "其他",
+				name: "其餘持股",
+				value: otherValue,
+			});
+		}
+
+		return topAllocations.map((allocation) => ({
+			...allocation,
+			percentage: totalAssets > 0 ? (allocation.value / totalAssets) * 100 : 0,
+		}));
+	};
 
 	return {
 		totalCost,
@@ -137,10 +174,9 @@ export function summarizeAccountPositions(payload: unknown): AccountSummary {
 		unrealizedProfitLoss,
 		unrealizedProfitLossRate:
 			totalCost === 0 ? null : (unrealizedProfitLoss / totalCost) * 100,
-		allocations: topAllocations.map((allocation) => ({
-			...allocation,
-			percentage: totalAssets > 0 ? (allocation.value / totalAssets) * 100 : 0,
-		})),
+		allocations: createAllocations(3),
+		detailAllocations: createAllocations(5),
+		holdings,
 	};
 }
 

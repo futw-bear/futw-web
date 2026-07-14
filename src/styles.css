@@ -411,12 +411,12 @@ svg { width: 20px; height: 20px; }
 .asset-total > strong { font-size: clamp(29px, 8vw, 34px); line-height: 1; font-weight: 820; font-variant-numeric: tabular-nums; }
 .asset-total small { margin-right: 3px; font-size: 13px; font-weight: 760; }
 .distribution-chart { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 14px; align-items: center; padding-top: 4px; }
-.distribution-pie { width: 132px; height: 132px; border-radius: 50%; background: conic-gradient(oklch(62% 0.12 245) 0 60.8%, oklch(73% 0.09 200) 60.8% 80.3%, oklch(72% 0.10 150) 80.3% 85.1%, oklch(74% 0.10 78) 85.1% 88.1%, var(--accent) 88.1% 95.2%, oklch(70% 0.08 24) 95.2% 100%); }
+.distribution-pie { width: 132px; height: 132px; border-radius: 50%; background: var(--border); }
 .distribution-legend { min-width: 0; display: grid; gap: 8px; }
 .distribution-legend > span { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 7px; align-items: center; color: var(--muted); font-size: 12px; }
 .distribution-legend i { width: 10px; height: 10px; border-radius: 50%; }
-.distribution-legend i.blue { background: oklch(62% 0.12 245); }.distribution-legend i.cyan { background: oklch(73% 0.09 200); }.distribution-legend i.green { background: oklch(72% 0.10 150); }.distribution-legend i.gold { background: oklch(74% 0.10 78); }.distribution-legend i.accent { background: var(--accent); }.distribution-legend i.rose { background: oklch(70% 0.08 24); }
 .distribution-legend strong { color: var(--fg); font-size: 13px; }
+.distribution-empty { min-height: 132px; display: grid; place-items: center; color: var(--muted); font-size: 13px; text-align: center; }
 .holdings-card { overflow: hidden; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); }
 .holdings-title { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); }
 .holdings-title h2 { margin: 0; font-size: 17px; }
@@ -432,6 +432,7 @@ svg { width: 20px; height: 20px; }
 .holding-security small { color: var(--muted); font-size: 13px; }
 .holding-row > strong { display: flex; align-items: center; justify-content: flex-end; gap: 2px; font-size: 17px; font-weight: 760; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .holding-row > strong svg { width: 20px; color: var(--muted); }
+.holdings-empty { min-height: 120px; display: grid; place-items: center; padding: 20px; color: var(--muted); font-size: 13px; text-align: center; }
 
 /* Stock detail */
 .stock-detail-page { padding-top: max(16px, env(safe-area-inset-top)); }

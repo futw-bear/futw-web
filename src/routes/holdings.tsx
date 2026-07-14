@@ -1,27 +1,66 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { MainNavigation } from "#/components/app-shell";
+import {
+	type AccountAllocation,
+	type AccountSummary,
+	downloadAccountSummary,
+	getAccountAllocationColor,
+} from "#/lib/account-summary";
+import { getStoredSecurities } from "#/lib/security-search";
+import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
+import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
 
 export const Route = createFileRoute("/holdings")({ component: HoldingsPage });
 
-const holdings = [
-	{ name: "富邦台 50", ticker: "006208", shares: "6,067", value: "1,524,940" },
-	{ name: "台積電", ticker: "2330", shares: "200", value: "489,000" },
-	{
-		name: "國泰 20 年美債",
-		ticker: "00687B",
-		shares: "4,308",
-		value: "121,270",
-	},
-	{ name: "元大高股息", ticker: "0056", shares: "1,399", value: "73,937" },
-	{ name: "元大台灣50", ticker: "0050", shares: "260", value: "178,840" },
-	{ name: "中華電", ticker: "2412", shares: "900", value: "61,500" },
-	{ name: "玉山金", ticker: "2884", shares: "2,000", value: "35,000" },
-	{ name: "中信金", ticker: "2891", shares: "1,500", value: "24,392" },
-];
-
 function HoldingsPage() {
+	const [serverCredentials] = useState(() =>
+		getAuthenticatedServerCredentials(),
+	);
+	const [summary, setSummary] = useState<AccountSummary | null>(null);
+	const [isLoading, setIsLoading] = useState(serverCredentials !== null);
+	const [error, setError] = useState(false);
+	const [securities, setSecurities] = useState(() => getStoredSecurities());
+	const securityNames = useMemo(
+		() => new Map(securities.map(({ ticker, name }) => [ticker, name])),
+		[securities],
+	);
+
+	useEffect(() => {
+		if (!serverCredentials) return;
+		let cancelled = false;
+		void downloadAccountSummary(serverCredentials)
+			.then((downloadedSummary) => {
+				if (!cancelled) setSummary(downloadedSummary);
+			})
+			.catch(() => {
+				if (!cancelled) setError(true);
+			})
+			.finally(() => {
+				if (!cancelled) setIsLoading(false);
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [serverCredentials]);
+
+	useEffect(() => {
+		const refreshSecurities = () => setSecurities(getStoredSecurities());
+		window.addEventListener("storage", refreshSecurities);
+		window.addEventListener(MARKET_DATA_UPDATED_EVENT, refreshSecurities);
+
+		return () => {
+			window.removeEventListener("storage", refreshSecurities);
+			window.removeEventListener(MARKET_DATA_UPDATED_EVENT, refreshSecurities);
+		};
+	}, []);
+
+	const getSecurityName = (code: string, fallback: string) =>
+		securityNames.get(code) ?? fallback;
+
 	return (
 		<>
 			<main className="app-page holdings-page">
@@ -33,80 +72,152 @@ function HoldingsPage() {
 					<span className="header-spacer" aria-hidden="true" />
 				</header>
 
-				<section className="asset-card" aria-label="資產分佈摘要">
-					<div className="asset-total">
-						<span>總資產</span>
-						<strong>
-							<small>TWD</small>2,508,879
-						</strong>
+				{!serverCredentials && (
+					<div className="empty-state" role="alert">
+						<strong>請先登入帳戶</strong>
+						<span>登入後即可查看資產配置與所有持股。</span>
 					</div>
-					<div className="distribution-chart">
-						<span className="distribution-pie" aria-hidden="true" />
-						<span className="distribution-legend">
-							<span>
-								<i className="blue" />
-								富邦台 50<strong>60.8%</strong>
-							</span>
-							<span>
-								<i className="cyan" />
-								台積電<strong>19.5%</strong>
-							</span>
-							<span>
-								<i className="green" />
-								國泰 20 年美債<strong>4.8%</strong>
-							</span>
-							<span>
-								<i className="gold" />
-								元大高股息<strong>2.9%</strong>
-							</span>
-							<span>
-								<i className="accent" />
-								元大台灣50<strong>7.1%</strong>
-							</span>
-							<span>
-								<i className="rose" />
-								其他<strong>4.8%</strong>
-							</span>
-						</span>
-					</div>
-				</section>
+				)}
 
-				<section className="holdings-card" aria-label="所有持股">
-					<div className="holdings-title">
-						<h2>所有持股</h2>
+				{error && (
+					<div className="market-data-state" role="alert">
+						持股資料暫時無法取得，請稍後再試。
 					</div>
-					<div className="holdings-columns" aria-hidden="true">
-						<span>
-							證券名稱 <b>▽</b>
-						</span>
-						<span>
-							餘額 <b>▽</b>
-						</span>
-						<span>
-							市值 <b>▼</b>
-						</span>
-					</div>
-					{holdings.map((holding) => (
-						<Link
-							className="holding-row"
-							to="/stocks/$ticker"
-							params={{ ticker: holding.ticker }}
-							key={holding.ticker}
+				)}
+
+				{serverCredentials && (
+					<>
+						<section
+							className="asset-card"
+							aria-label="資產分佈摘要"
+							aria-busy={isLoading}
 						>
-							<span className="holding-security">
-								<strong>{holding.name}</strong>
-								<small>{holding.ticker}</small>
-							</span>
-							<strong>{holding.shares}</strong>
-							<strong>
-								{holding.value}
-								<ChevronRight />
-							</strong>
-						</Link>
-					))}
-				</section>
+							<div className="asset-total">
+								<span>總資產</span>
+								<strong>
+									<small>TWD</small>
+									{summary ? formatNumber(summary.totalAssets) : "--"}
+								</strong>
+							</div>
+							{summary && summary.detailAllocations.length > 0 ? (
+								<DistributionChart
+									allocations={summary.detailAllocations}
+									securityNames={securityNames}
+								/>
+							) : (
+								<div className="distribution-empty">
+									{isLoading
+										? "正在載入資產配置…"
+										: error
+											? "無法載入資產配置。"
+											: "目前沒有可顯示的資產配置。"}
+								</div>
+							)}
+						</section>
+
+						<section className="holdings-card" aria-label="所有持股">
+							<div className="holdings-title">
+								<h2>所有持股</h2>
+							</div>
+							<div className="holdings-columns" aria-hidden="true">
+								<span>證券名稱</span>
+								<span>持有股數</span>
+								<span>市值</span>
+							</div>
+							{summary?.holdings.map((holding) => (
+								<Link
+									className="holding-row"
+									to="/stocks/$ticker"
+									params={{ ticker: holding.code }}
+									key={holding.code}
+								>
+									<span className="holding-security">
+										<strong>
+											{getSecurityName(holding.code, holding.name)}
+										</strong>
+										<small>{holding.code}</small>
+									</span>
+									<strong>{formatNumber(holding.shares)}</strong>
+									<strong>
+										{formatNumber(holding.value)}
+										<ChevronRight />
+									</strong>
+								</Link>
+							))}
+							{(!summary || summary.holdings.length === 0) && (
+								<div className="holdings-empty">
+									{isLoading
+										? "正在載入持股…"
+										: error
+											? "無法載入持股。"
+											: "目前沒有持股。"}
+								</div>
+							)}
+						</section>
+					</>
+				)}
 			</main>
 			<MainNavigation active="account" />
 		</>
+	);
+}
+
+function formatNumber(value: number) {
+	return Math.round(value).toLocaleString("en-US");
+}
+
+function formatPercentage(value: number) {
+	return `${value.toFixed(value >= 10 ? 0 : 1)}%`;
+}
+
+function createAllocationGradient(allocations: AccountAllocation[]) {
+	let currentPercentage = 0;
+	const stops = allocations.map((allocation, index) => {
+		const start = currentPercentage;
+		currentPercentage += allocation.percentage;
+		return `${getAccountAllocationColor(allocation, index)} ${start}% ${currentPercentage}%`;
+	});
+	if (currentPercentage < 100) {
+		stops.push(`var(--border) ${currentPercentage}% 100%`);
+	}
+	return `conic-gradient(${stops.join(", ")})`;
+}
+
+function DistributionChart({
+	allocations,
+	securityNames,
+}: {
+	allocations: AccountAllocation[];
+	securityNames: Map<string, string>;
+}) {
+	const chartLabel = allocations
+		.map(
+			(allocation) =>
+				`${securityNames.get(allocation.code) ?? allocation.name} ${formatPercentage(allocation.percentage)}`,
+		)
+		.join("、");
+
+	return (
+		<div className="distribution-chart">
+			<span
+				className="distribution-pie"
+				style={{ background: createAllocationGradient(allocations) }}
+				role="img"
+				aria-label={`資產配置：${chartLabel}`}
+			/>
+			<span className="distribution-legend">
+				{allocations.map((allocation, index) => (
+					<span key={allocation.code}>
+						<i
+							style={{
+								background: getAccountAllocationColor(allocation, index),
+							}}
+						/>
+						{securityNames.get(allocation.code) ?? allocation.name}
+						<strong>{formatPercentage(allocation.percentage)}</strong>
+					</span>
+				))}
+			</span>
+		</div>
 	);
 }

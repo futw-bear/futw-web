@@ -6,6 +6,7 @@ import {
 	type AccountAllocation,
 	type AccountSummary,
 	downloadAccountSummary,
+	getAccountAllocationColor,
 } from "#/lib/account-summary";
 import { getStoredSecurities } from "#/lib/security-search";
 import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
@@ -132,13 +133,6 @@ function AccountPage() {
 	);
 }
 
-const ALLOCATION_COLORS = [
-	"var(--gain)",
-	"var(--accent)",
-	"oklch(72% 0.08 80)",
-	"oklch(88% 0.018 70)",
-];
-
 function formatCurrency(value: number) {
 	return `NT$ ${Math.round(value).toLocaleString("en-US")}`;
 }
@@ -162,7 +156,7 @@ function createAllocationGradient(allocations: AccountAllocation[]) {
 	const stops = allocations.map((allocation, index) => {
 		const start = currentPercentage;
 		currentPercentage += allocation.percentage;
-		return `${ALLOCATION_COLORS[index]} ${start}% ${currentPercentage}%`;
+		return `${getAccountAllocationColor(allocation, index)} ${start}% ${currentPercentage}%`;
 	});
 	if (currentPercentage < 100) {
 		stops.push(`oklch(88% 0.018 70) ${currentPercentage}% 100%`);
@@ -201,7 +195,9 @@ function AllocationChart({
 					<span className="allocation-row" key={allocation.code}>
 						<i
 							className="dot"
-							style={{ background: ALLOCATION_COLORS[index] }}
+							style={{
+								background: getAccountAllocationColor(allocation, index),
+							}}
 						/>
 						<span>
 							<strong>
