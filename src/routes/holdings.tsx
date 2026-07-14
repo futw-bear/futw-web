@@ -119,40 +119,62 @@ function HoldingsPage() {
 							<div className="holdings-title">
 								<h2>所有持股</h2>
 							</div>
-							<div className="holdings-columns" aria-hidden="true">
-								<span>證券名稱</span>
-								<span>持有股數</span>
-								<span>市值</span>
-							</div>
-							{summary?.holdings.map((holding) => (
-								<Link
-									className="holding-row"
-									to="/stocks/$ticker"
-									params={{ ticker: holding.code }}
-									key={holding.code}
-								>
-									<span className="holding-security">
-										<strong>
-											{getSecurityName(holding.code, holding.name)}
-										</strong>
-										<small>{holding.code}</small>
-									</span>
-									<strong>{formatNumber(holding.shares)}</strong>
-									<strong>
-										{formatNumber(holding.value)}
-										<ChevronRight />
-									</strong>
-								</Link>
-							))}
-							{(!summary || summary.holdings.length === 0) && (
-								<div className="holdings-empty">
-									{isLoading
-										? "正在載入持股…"
-										: error
-											? "無法載入持股。"
-											: "目前沒有持股。"}
+							<section
+								className="holdings-table-scroll"
+								aria-label="持股資料，可水平捲動"
+							>
+								<div className="holdings-table">
+									<div className="holdings-columns" aria-hidden="true">
+										<span>證券名稱</span>
+										<span>持有股數</span>
+										<span>損益</span>
+										<span>市值</span>
+									</div>
+									{summary?.holdings.map((holding) => {
+										const direction =
+											holding.unrealizedProfitLoss > 0
+												? "gain"
+												: holding.unrealizedProfitLoss < 0
+													? "loss"
+													: "neutral";
+										return (
+											<Link
+												className="holding-row"
+												to="/stocks/$ticker"
+												params={{ ticker: holding.code }}
+												key={holding.code}
+											>
+												<span className="holding-security">
+													<strong>
+														{getSecurityName(holding.code, holding.name)}
+													</strong>
+													<small>{holding.code}</small>
+												</span>
+												<strong>{formatNumber(holding.shares)}</strong>
+												<strong className={`holding-profit-loss ${direction}`}>
+													{formatProfitLoss(
+														holding.unrealizedProfitLoss,
+														holding.unrealizedProfitLossRate,
+													)}
+												</strong>
+												<strong>
+													{formatNumber(holding.value)}
+													<ChevronRight />
+												</strong>
+											</Link>
+										);
+									})}
+									{(!summary || summary.holdings.length === 0) && (
+										<div className="holdings-empty">
+											{isLoading
+												? "正在載入持股…"
+												: error
+													? "無法載入持股。"
+													: "目前沒有持股。"}
+										</div>
+									)}
 								</div>
-							)}
+							</section>
 						</section>
 					</>
 				)}
@@ -164,6 +186,13 @@ function HoldingsPage() {
 
 function formatNumber(value: number) {
 	return Math.round(value).toLocaleString("en-US");
+}
+
+function formatProfitLoss(value: number, rate: number | null) {
+	const signedValue = `${value > 0 ? "+" : ""}${formatNumber(value)}`;
+	const signedRate =
+		rate === null ? "--" : `${rate > 0 ? "+" : ""}${rate.toFixed(2)}%`;
+	return `${signedValue}（${signedRate}）`;
 }
 
 function formatPercentage(value: number) {

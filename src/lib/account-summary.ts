@@ -35,6 +35,9 @@ export type AccountHolding = {
 	code: string;
 	name: string;
 	shares: number;
+	totalCost: number;
+	unrealizedProfitLoss: number;
+	unrealizedProfitLossRate: number | null;
 	value: number;
 };
 
@@ -123,25 +126,37 @@ export function summarizeAccountPositions(payload: unknown): AccountSummary {
 	const holdingsByCode = new Map<string, AccountHolding>();
 
 	for (const position of positions) {
-		const value =
-			position.costPrice * position.tradableQty +
-			position.unrealizedProfit -
-			position.unrealizedLoss;
+		const positionCost = position.costPrice * position.tradableQty;
+		const positionProfitLoss =
+			position.unrealizedProfit - position.unrealizedLoss;
+		const value = positionCost + positionProfitLoss;
 		const existing = holdingsByCode.get(position.code);
 		if (existing) {
 			existing.value += value;
 			existing.shares += position.tradableQty;
+			existing.totalCost += positionCost;
+			existing.unrealizedProfitLoss += positionProfitLoss;
 		} else {
 			holdingsByCode.set(position.code, {
 				code: position.code,
 				name: position.name,
 				shares: position.tradableQty,
+				totalCost: positionCost,
+				unrealizedProfitLoss: positionProfitLoss,
+				unrealizedProfitLossRate: null,
 				value,
 			});
 		}
 	}
 
 	const holdings = [...holdingsByCode.values()]
+		.map((holding) => ({
+			...holding,
+			unrealizedProfitLossRate:
+				holding.totalCost === 0
+					? null
+					: (holding.unrealizedProfitLoss / holding.totalCost) * 100,
+		}))
 		.filter((holding) => holding.value > 0 || holding.shares > 0)
 		.sort((left, right) => right.value - left.value);
 	const positiveHoldings = holdings.filter((holding) => holding.value > 0);

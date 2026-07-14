@@ -402,8 +402,18 @@ describe("application routes", () => {
 			new Response(
 				JSON.stringify({
 					data: [
-						{ stockNo: "2330", costPrice: 600, tradableQty: 1_000 },
-						{ stockNo: "0050", costPrice: 200, tradableQty: 1_000 },
+						{
+							stockNo: "2330",
+							costPrice: 600,
+							tradableQty: 1_000,
+							unrealizedProfit: 12_000,
+						},
+						{
+							stockNo: "0050",
+							costPrice: 200,
+							tradableQty: 1_000,
+							unrealizedLoss: 3_000,
+						},
 						{ stockNo: "2412", costPrice: 100, tradableQty: 1_000 },
 						{ stockNo: "2317", costPrice: 80, tradableQty: 1_000 },
 						{ stockNo: "2454", costPrice: 60, tradableQty: 1_000 },
@@ -416,7 +426,7 @@ describe("application routes", () => {
 		const { container } = renderRoute("/holdings");
 		const page = within(container);
 
-		expect(await page.findByText("1,090,000")).toBeTruthy();
+		expect(await page.findByText("1,099,000")).toBeTruthy();
 		const allocationChart = page.getByRole("img", { name: /資產配置/ });
 		expect(allocationChart).toBeTruthy();
 		expect(allocationChart.getAttribute("style")).toContain("#768E8B");
@@ -425,6 +435,27 @@ describe("application routes", () => {
 			container.querySelectorAll(".distribution-legend > span"),
 		).toHaveLength(6);
 		expect(container.querySelectorAll(".holding-row")).toHaveLength(6);
+		expect(page.getByText("持有股數")).toBeTruthy();
+		expect(page.getByText("損益")).toBeTruthy();
+		expect(page.queryByText("餘額")).toBeNull();
+		expect(page.getByLabelText("持股資料，可水平捲動")).toBeTruthy();
+		const holdingRows = container.querySelectorAll(".holding-row");
+		expect(
+			holdingRows[0]?.querySelector(".holding-profit-loss")?.textContent,
+		).toBe("+12,000（+2.00%）");
+		expect(
+			holdingRows[0]
+				?.querySelector(".holding-profit-loss")
+				?.classList.contains("gain"),
+		).toBe(true);
+		expect(
+			holdingRows[1]?.querySelector(".holding-profit-loss")?.textContent,
+		).toBe("-3,000（-1.50%）");
+		expect(
+			holdingRows[1]
+				?.querySelector(".holding-profit-loss")
+				?.classList.contains("loss"),
+		).toBe(true);
 		expect(page.getAllByText("台積電")).toHaveLength(2);
 		expect(page.getAllByText("聯發科")).toHaveLength(2);
 		expect(page.queryByText("富邦台 50")).toBeNull();

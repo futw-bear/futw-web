@@ -73,6 +73,9 @@ describe("account summary", () => {
 			code: "2330",
 			name: "台積電",
 			shares: 1_000,
+			totalCost: 600_000,
+			unrealizedProfitLoss: 12_000,
+			unrealizedProfitLossRate: 2,
 			value: 612_000,
 		});
 	});
