@@ -1,15 +1,16 @@
 // @vitest-environment jsdom
 
+import "#/test-dom-setup";
 import {
 	createMemoryHistory,
 	createRouter,
 	RouterProvider,
 } from "@tanstack/react-router";
 import {
+	act,
 	cleanup,
 	fireEvent,
 	render,
-	screen,
 	waitFor,
 	within,
 } from "@testing-library/react";
@@ -21,12 +22,28 @@ import {
 } from "#/lib/server-auth";
 import { routeTree } from "../routeTree.gen";
 
+const originalWebSocket = globalThis.WebSocket;
+
+function setWebSocket(value: typeof WebSocket | undefined) {
+	Object.defineProperty(globalThis, "WebSocket", {
+		configurable: true,
+		value,
+		writable: true,
+	});
+}
+
 function renderRoute(path: string, previousPath?: string) {
 	const history = createMemoryHistory({
 		initialEntries: previousPath ? [previousPath, path] : [path],
 	});
 	const router = createRouter({ routeTree, history });
 	return render(<RouterProvider router={router} />);
+}
+
+function setInputValue(input: HTMLElement, value: string) {
+	fireEvent.focus(input);
+	fireEvent.change(input, { target: { value } });
+	fireEvent.keyUp(input, { key: value.at(-1) ?? "" });
 }
 
 beforeEach(() => {
@@ -71,7 +88,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	cleanup();
-	vi.unstubAllGlobals();
+	setWebSocket(originalWebSocket);
 	vi.restoreAllMocks();
 });
 
@@ -177,7 +194,7 @@ describe("application routes", () => {
 				socket = this;
 			}
 		}
-		vi.stubGlobal("WebSocket", MockWebSocket);
+		setWebSocket(MockWebSocket as unknown as typeof WebSocket);
 
 		const { container, unmount } = renderRoute("/");
 		const page = within(container);
@@ -373,7 +390,7 @@ describe("application routes", () => {
 				socket = this;
 			}
 		}
-		vi.stubGlobal("WebSocket", MockWebSocket);
+		setWebSocket(MockWebSocket as unknown as typeof WebSocket);
 
 		const { container, unmount } = renderRoute("/stocks/2330");
 		const summary = within(
@@ -562,9 +579,10 @@ describe("application routes", () => {
 
 	it("shows a login-required state when the account URL is opened directly", async () => {
 		const fetcher = vi.spyOn(window, "fetch");
-		renderRoute("/account");
+		const { container } = renderRoute("/account");
+		const page = within(container);
 
-		expect((await screen.findByRole("alert")).textContent).toContain(
+		expect((await page.findByRole("alert")).textContent).toContain(
 			"請先登入帳戶",
 		);
 		expect(fetcher).not.toHaveBeenCalled();
@@ -668,12 +686,11 @@ describe("application routes", () => {
 		fireEvent.click(await page.findByRole("link", { name: "帳戶" }));
 		const dialog = page.getByRole("dialog", { name: "登入帳戶" });
 		const login = within(dialog);
-		fireEvent.change(login.getByLabelText("伺服器位址"), {
-			target: { value: "https://data.example.com/" },
-		});
-		fireEvent.change(login.getByLabelText("認證密碼"), {
-			target: { value: "secret-token" },
-		});
+		setInputValue(
+			login.getByLabelText("伺服器位址"),
+			"https://data.example.com/",
+		);
+		setInputValue(login.getByLabelText("認證密碼"), "secret-token");
 		fireEvent.click(login.getByRole("button", { name: "登入" }));
 
 		await waitFor(() => {
@@ -707,9 +724,10 @@ describe("application routes", () => {
 
 		expect(backdrop.classList.contains("is-closing")).toBe(true);
 		expect(page.getByRole("dialog", { hidden: true })).toBeTruthy();
-		await waitFor(() =>
-			expect(page.queryByRole("dialog", { hidden: true })).toBeNull(),
-		);
+		await act(async () => {
+			await new Promise((resolve) => globalThis.setTimeout(resolve, 0));
+		});
+		expect(page.queryByRole("dialog", { hidden: true })).toBeNull();
 	});
 
 	it("opens the account directly when credentials are already stored", async () => {
@@ -732,7 +750,8 @@ describe("application routes", () => {
 
 	it("searches stored securities by partial ticker and name", async () => {
 		const { container } = renderRoute("/search");
-		await screen.findByRole("searchbox", { name: "搜尋股票或 ETF" });
+		const page = within(container);
+		await page.findByRole("searchbox", { name: "搜尋股票或 ETF" });
 		const searchPage = container.querySelector(".search-page");
 		expect(searchPage).toBeTruthy();
 		const search = within(searchPage as HTMLElement);
@@ -740,13 +759,13 @@ describe("application routes", () => {
 		const searchInput = await search.findByRole("searchbox", {
 			name: "搜尋股票或 ETF",
 		});
-		fireEvent.change(searchInput, { target: { value: "233" } });
+		setInputValue(searchInput, "233");
 
 		expect(await search.findByText("旺玖")).toBeTruthy();
 		expect(search.getByText("台積電")).toBeTruthy();
 		expect(search.queryByText("上市股熱度榜")).toBeNull();
 
-		fireEvent.change(searchInput, { target: { value: "積電" } });
+		setInputValue(searchInput, "積電");
 		expect(await search.findByText("台積電")).toBeTruthy();
 		expect(search.queryByText("旺玖")).toBeNull();
 		expect(search.queryByRole("link", { name: /台積電/ })).toBeNull();
@@ -772,9 +791,9 @@ describe("application routes", () => {
 		const { container } = renderRoute("/search");
 		const search = within(container);
 
-		fireEvent.change(
+		setInputValue(
 			await search.findByRole("searchbox", { name: "搜尋股票或 ETF" }),
-			{ target: { value: "積電" } },
+			"積電",
 		);
 
 		expect(

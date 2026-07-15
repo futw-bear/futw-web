@@ -149,7 +149,7 @@ function ServerLoginModal({
 		if (!isClosing) return;
 		const prefersReducedMotion =
 			window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-		const exitTimer = window.setTimeout(
+		const exitTimer = globalThis.setTimeout(
 			() => {
 				if (shouldNavigateAfterClose) {
 					onAuthenticated();
@@ -160,7 +160,7 @@ function ServerLoginModal({
 			prefersReducedMotion ? 0 : LOGIN_MODAL_EXIT_DURATION,
 		);
 
-		return () => window.clearTimeout(exitTimer);
+		return () => globalThis.clearTimeout(exitTimer);
 	}, [isClosing, onAuthenticated, onClose, shouldNavigateAfterClose]);
 
 	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
