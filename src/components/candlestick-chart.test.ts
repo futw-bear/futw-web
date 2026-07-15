@@ -62,6 +62,24 @@ describe("candlestick chart time axis", () => {
 		).toEqual([0, 2]);
 	});
 
+	it("uses one time-axis tick per Taipei hour for intraday charts", () => {
+		const candles = [
+			"2026-07-10T09:00:00+08:00",
+			"2026-07-10T09:30:00+08:00",
+			"2026-07-10T10:00:00+08:00",
+			"2026-07-10T10:30:00+08:00",
+			"2026-07-10T11:00:00+08:00",
+		].map((time, index) => ({
+			time: Date.parse(time),
+			open: 100 + index,
+			high: 102 + index,
+			low: 99 + index,
+			close: 101 + index,
+		}));
+
+		expect(getTimeTickIndexes(candles, "1", true)).toEqual([0, 2, 4]);
+	});
+
 	it("uses one label per day for 30 and 60 minute candles", () => {
 		const candles = candlesAt(
 			"2026-07-10",

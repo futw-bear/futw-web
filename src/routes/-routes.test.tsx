@@ -319,8 +319,13 @@ describe("application routes", () => {
 		expect(summary.getByText("1,040.00")).toBeTruthy();
 		expect(summary.getByText("1,025.00")).toBeTruthy();
 		expect(summary.getAllByText("1,020.00")).toHaveLength(2);
-		expect(await page.findByRole("img", { name: "5日線圖" })).toBeTruthy();
-		expect(container.querySelector(".five-day-price-line")).toBeTruthy();
+		expect(page.queryByRole("combobox", { name: "選擇分鐘 K 線" })).toBeNull();
+		for (const minute of ["1", "5", "10", "15", "30", "60"]) {
+			expect(page.getByRole("button", { name: `${minute} 分` })).toBeTruthy();
+		}
+		expect(page.queryByRole("button", { name: "5日" })).toBeNull();
+		expect(await page.findByRole("img", { name: "1 分線圖" })).toBeTruthy();
+		expect(container.querySelector(".five-day-price-line")).toBeNull();
 		expect(fetcher).toHaveBeenCalledWith(
 			"https://data.example.com/proxy/market-data/intraday/quote/2330",
 			expect.objectContaining({
@@ -333,6 +338,76 @@ describe("application routes", () => {
 			"https://data.example.com/proxy/market-data/intraday/candles/2330?timeframe=1",
 			expect.any(Object),
 		);
+	});
+
+	it("updates an open stock detail quote from WebSocket trades", async () => {
+		localStorage.setItem(SERVER_ADDRESS_STORAGE_KEY, "http://data.example.com");
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+			if (String(input).includes("/intraday/quote/")) {
+				return new Response(
+					JSON.stringify({
+						name: "台積電",
+						symbol: "2330",
+						closePrice: 1035,
+						highPrice: 1040,
+						lowPrice: 1020,
+						openPrice: 1025,
+						isClose: false,
+					}),
+					{ status: 200 },
+				);
+			}
+			return new Response("[]", { status: 200 });
+		});
+		let socket: MockWebSocket | null = null;
+		let socketUrl = "";
+		class MockWebSocket {
+			close = vi.fn();
+			send = vi.fn();
+			onmessage: ((event: MessageEvent) => void) | null = null;
+			onopen: (() => void) | null = null;
+
+			constructor(url: string) {
+				socketUrl = url;
+				socket = this;
+			}
+		}
+		vi.stubGlobal("WebSocket", MockWebSocket);
+
+		const { container, unmount } = renderRoute("/stocks/2330");
+		const summary = within(
+			await within(container).findByRole("region", { name: "股票報價" }),
+		);
+		await waitFor(() => expect(socket?.onopen).not.toBeNull());
+		expect(socketUrl).toBe(
+			"ws://data.example.com/proxy/market-data/ws?mode=speed",
+		);
+		socket?.onopen?.();
+		expect(socket?.send).toHaveBeenCalledWith(
+			JSON.stringify({
+				event: "subscribe",
+				data: { channel: "trades", symbols: ["2330"] },
+			}),
+		);
+
+		socket?.onmessage?.(
+			new MessageEvent("message", {
+				data: JSON.stringify({
+					event: "data",
+					data: { symbol: "2330", price: 1050 },
+				}),
+			}),
+		);
+		await waitFor(() =>
+			expect(summary.getAllByText("1,050.00")).toHaveLength(2),
+		);
+		expect(summary.getByText("+25.00 +2.44%")).toBeTruthy();
+		expect(summary.getAllByText("1,050.00")).toHaveLength(2);
+		expect(summary.getByText("1,020.00")).toBeTruthy();
+
+		unmount();
+		expect(socket?.close).toHaveBeenCalled();
 	});
 
 	it("shows the Taipei close time and the non-watchlist heart state", async () => {

@@ -12,13 +12,16 @@ import {
 	getTimeframeLabel,
 } from "#/components/candlestick-chart";
 import {
-	CANDLE_MINUTE_TIMEFRAMES,
 	type Candle,
 	type CandleTimeframe,
 	downloadCandlesForMarketSession,
 	type MarketSession,
+	MINUTE_TIMEFRAMES,
 } from "#/lib/candles";
-import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
+import {
+	getAuthenticatedServerCredentials,
+	normalizeServerAddress,
+} from "#/lib/server-auth";
 import { downloadStockQuote, type StockQuote } from "#/lib/stock-quote";
 import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
 import { getStoredWatchlist, toggleWatchlistTicker } from "#/lib/watchlist";
@@ -45,6 +48,26 @@ function formatTaipeiDateTime(timestampMicroseconds: number | null) {
 		parts.find((part) => part.type === type)?.value ?? "--";
 
 	return `${value("month")}/${value("day")} ${value("hour")}:${value("minute")}:${value("second")}`;
+}
+
+function formatPrice(value: number) {
+	return new Intl.NumberFormat("en-US", {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	}).format(value);
+}
+
+function parseFormattedPrice(value: string) {
+	const parsed = Number(value.replaceAll(",", ""));
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getMarketDataWebSocketUrl(serverAddress: string) {
+	const url = new URL(normalizeServerAddress(serverAddress));
+	url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+	url.pathname = `${url.pathname}/proxy/market-data/ws`.replace(/\/{2,}/g, "/");
+	url.search = "?mode=speed";
+	return url.toString();
 }
 
 function BackButton() {
@@ -105,9 +128,7 @@ function StockDetailPage() {
 	const [favorite, setFavorite] = useState(() =>
 		getStoredWatchlist().includes(ticker),
 	);
-	const isCandleMinuteTimeframe = CANDLE_MINUTE_TIMEFRAMES.some(
-		(minuteTimeframe) => minuteTimeframe === timeframe,
-	);
+	const isMarketOpen = !isLoading && !quote.isClose;
 	const quoteUpdatedAt = formatTaipeiDateTime(quote.lastUpdated);
 	const quoteStatus = isLoading
 		? "正在載入即時報價…"
@@ -131,10 +152,90 @@ function StockDetailPage() {
 	useEffect(() => {
 		if (!serverCredentials) return;
 		let cancelled = false;
+		let marketDataSocket: WebSocket | null = null;
 		setError(false);
 		void downloadStockQuote(ticker, serverCredentials)
 			.then((downloadedQuote) => {
-				if (!cancelled) setQuote(downloadedQuote);
+				if (cancelled) return;
+				setQuote(downloadedQuote);
+				if (downloadedQuote.isClose || typeof WebSocket === "undefined") {
+					return;
+				}
+
+				marketDataSocket = new WebSocket(
+					getMarketDataWebSocketUrl(serverCredentials.serverAddress),
+				);
+				marketDataSocket.onopen = () => {
+					marketDataSocket?.send(
+						JSON.stringify({
+							event: "subscribe",
+							data: { channel: "trades", symbols: [ticker] },
+						}),
+					);
+				};
+				marketDataSocket.onmessage = (event) => {
+					try {
+						const message: unknown = JSON.parse(String(event.data));
+						if (
+							typeof message !== "object" ||
+							message === null ||
+							!("event" in message) ||
+							message.event !== "data" ||
+							!("data" in message) ||
+							typeof message.data !== "object" ||
+							message.data === null ||
+							!("symbol" in message.data) ||
+							!("price" in message.data) ||
+							message.data.symbol !== ticker ||
+							typeof message.data.price !== "number" ||
+							!Number.isFinite(message.data.price)
+						) {
+							return;
+						}
+
+						setQuote((currentQuote) => {
+							const openPrice = parseFormattedPrice(currentQuote.openPrice);
+							const highPrice = parseFormattedPrice(currentQuote.highPrice);
+							const lowPrice = parseFormattedPrice(currentQuote.lowPrice);
+							const change =
+								openPrice === null ? null : message.data.price - openPrice;
+							const changePercent =
+								openPrice === null || openPrice === 0 || change === null
+									? null
+									: (change / openPrice) * 100;
+							return {
+								...currentQuote,
+								closePrice: formatPrice(message.data.price),
+								change:
+									change === null
+										? "--"
+										: `${change > 0 ? "+" : ""}${change.toFixed(2)}`,
+								changePercent:
+									changePercent === null
+										? "--"
+										: `${changePercent > 0 ? "+" : ""}${changePercent.toFixed(2)}%`,
+								highPrice: formatPrice(
+									highPrice === null
+										? message.data.price
+										: Math.max(highPrice, message.data.price),
+								),
+								lowPrice: formatPrice(
+									lowPrice === null
+										? message.data.price
+										: Math.min(lowPrice, message.data.price),
+								),
+								direction:
+									change === null || change === 0
+										? "neutral"
+										: change > 0
+											? "gain"
+											: "loss",
+							};
+						});
+					} catch {
+						// Ignore malformed WebSocket messages.
+					}
+				};
 			})
 			.catch(() => {
 				if (!cancelled) setError(true);
@@ -145,6 +246,7 @@ function StockDetailPage() {
 
 		return () => {
 			cancelled = true;
+			marketDataSocket?.close();
 		};
 	}, [serverCredentials, ticker]);
 
@@ -261,54 +363,55 @@ function StockDetailPage() {
 				</section>
 
 				<nav className="range-tabs" aria-label="圖表區間">
-					<span className="range-option">
-						<button
-							type="button"
-							className={timeframe === "1" ? "active" : undefined}
-							onClick={() => setTimeframe("1")}
-						>
-							5日
-						</button>
-					</span>
-					<span className="range-option">
-						<select
-							aria-label="選擇分鐘 K 線"
-							value={isCandleMinuteTimeframe ? timeframe : ""}
-							onChange={(event) =>
-								setTimeframe(event.target.value as CandleTimeframe)
-							}
-						>
-							<option value="" disabled>
-								分K
-							</option>
-							{CANDLE_MINUTE_TIMEFRAMES.map((minuteTimeframe) => (
-								<option value={minuteTimeframe} key={minuteTimeframe}>
-									{minuteTimeframe} 分K
-								</option>
+					{isMarketOpen ? (
+						MINUTE_TIMEFRAMES.map((minuteTimeframe) => (
+							<span key={minuteTimeframe} className="range-option">
+								<button
+									type="button"
+									className={
+										timeframe === minuteTimeframe ? "active" : undefined
+									}
+									onClick={() => setTimeframe(minuteTimeframe)}
+								>
+									{minuteTimeframe} 分
+								</button>
+							</span>
+						))
+					) : (
+						<>
+							<span className="range-option">
+								<button
+									type="button"
+									className={timeframe === "1" ? "active" : undefined}
+									onClick={() => setTimeframe("1")}
+								>
+									5日
+								</button>
+							</span>
+							{(["D", "W", "M"] as const).map((item) => (
+								<span key={item} className="range-option">
+									<button
+										type="button"
+										className={timeframe === item ? "active" : undefined}
+										disabled={marketSession !== "closed"}
+										onClick={() => setTimeframe(item)}
+									>
+										{getTimeframeLabel(item)}
+									</button>
+								</span>
 							))}
-						</select>
-					</span>
-					{(["D", "W", "M"] as const).map((item) => (
-						<span key={item} className="range-option">
-							<button
-								type="button"
-								className={timeframe === item ? "active" : undefined}
-								disabled={marketSession !== "closed"}
-								onClick={() => setTimeframe(item)}
-							>
-								{getTimeframeLabel(item)}
-							</button>
-						</span>
-					))}
+						</>
+					)}
 				</nav>
 
 				<section
 					className="stock-chart-card"
-					aria-label={`${getTimeframeLabel(timeframe)}走勢圖`}
+					aria-label={`${isMarketOpen ? `${timeframe} 分` : getTimeframeLabel(timeframe)}走勢圖`}
 				>
 					<CandlestickChart
 						candles={candles}
 						timeframe={timeframe}
+						isIntraday={isMarketOpen}
 						isLoading={areCandlesLoading}
 						error={candlesError}
 					/>

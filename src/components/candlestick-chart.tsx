@@ -15,14 +15,26 @@ function formatPrice(value: number) {
 	}).format(value);
 }
 
-function formatTime(time: number, timeframe: CandleTimeframe) {
+function formatTime(
+	time: number,
+	timeframe: CandleTimeframe,
+	isIntraday: boolean,
+) {
+	if (isIntraday) {
+		const hour = new Intl.DateTimeFormat("en-GB", {
+			timeZone: "Asia/Taipei",
+			hour: "2-digit",
+			hourCycle: "h23",
+		}).format(new Date(time));
+		return `${hour}:00`;
+	}
 	const dateOptions: Intl.DateTimeFormatOptions = {
 		timeZone: "Asia/Taipei",
 		month: "2-digit",
 		...(timeframe === "D" || timeframe === "W" || timeframe === "M"
 			? { year: "2-digit" }
 			: { day: "2-digit" }),
-		...(timeframe !== "1" &&
+		...((timeframe !== "1" || isIntraday) &&
 		timeframe !== "30" &&
 		timeframe !== "60" &&
 		timeframe !== "D" &&
@@ -36,10 +48,10 @@ function formatTime(time: number, timeframe: CandleTimeframe) {
 
 export function getTimeframeLabel(timeframe: CandleTimeframe) {
 	if (timeframe === "1") return "5日";
-	if (timeframe === "D") return "日K";
-	if (timeframe === "W") return "週K";
-	if (timeframe === "M") return "月K";
-	return `${timeframe} 分K`;
+	if (timeframe === "D") return "日線";
+	if (timeframe === "W") return "週線";
+	if (timeframe === "M") return "月線";
+	return `${timeframe} 分`;
 }
 
 function getTaipeiPeriodKey(time: number, timeframe: CandleTimeframe) {
@@ -62,13 +74,38 @@ function getTaipeiPeriodKey(time: number, timeframe: CandleTimeframe) {
 	return null;
 }
 
+function getTaipeiHourKey(time: number) {
+	const parts = new Intl.DateTimeFormat("en-CA", {
+		timeZone: "Asia/Taipei",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+		hour: "2-digit",
+		hourCycle: "h23",
+	}).formatToParts(new Date(time));
+	const value = (type: Intl.DateTimeFormatPartTypes) =>
+		parts.find((part) => part.type === type)?.value;
+	return `${value("year")}-${value("month")}-${value("day")}-${value("hour")}`;
+}
+
 export function getTimeTickIndexes(
 	candles: Candle[],
 	timeframe: CandleTimeframe,
+	isIntraday = false,
 ) {
 	if (candles.length === 0) return [];
+	if (isIntraday) {
+		const indexes: number[] = [];
+		let previousHour: string | null = null;
+		for (const [index, candle] of candles.entries()) {
+			const hour = getTaipeiHourKey(candle.time);
+			if (hour !== previousHour) indexes.push(index);
+			previousHour = hour;
+		}
+		return indexes;
+	}
 	if (
-		timeframe === "1" ||
+		(timeframe === "1" && !isIntraday) ||
 		timeframe === "30" ||
 		timeframe === "60" ||
 		timeframe === "D" ||
@@ -115,18 +152,20 @@ export function getPriceScale(candles: Candle[], timeframe: CandleTimeframe) {
 export function CandlestickChart({
 	candles,
 	timeframe,
+	isIntraday = false,
 	isLoading,
 	error,
 }: {
 	candles: Candle[];
 	timeframe: CandleTimeframe;
+	isIntraday?: boolean;
 	isLoading: boolean;
 	error: boolean;
 }) {
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const chart = useMemo(() => {
 		if (candles.length === 0) return null;
-		const isFiveDay = timeframe === "1";
+		const isFiveDay = timeframe === "1" && !isIntraday;
 		const { maximumPrice, priceRange, priceTicks } = getPriceScale(
 			candles,
 			timeframe,
@@ -147,7 +186,7 @@ export function CandlestickChart({
 			price,
 			y: getY(price),
 		}));
-		const timeTickIndexes = getTimeTickIndexes(candles, timeframe);
+		const timeTickIndexes = getTimeTickIndexes(candles, timeframe, isIntraday);
 		const linePoints = isFiveDay
 			? candles
 					.map((candle, index) => `${getX(index)},${getY(candle.close)}`)
@@ -163,10 +202,11 @@ export function CandlestickChart({
 			getX,
 			getY,
 			linePoints,
+			isFiveDay,
 			priceTicks: positionedPriceTicks,
 			timeTickIndexes,
 		};
-	}, [candles, timeframe]);
+	}, [candles, isIntraday, timeframe]);
 
 	useEffect(() => {
 		const container = scrollContainerRef.current;
@@ -195,7 +235,11 @@ export function CandlestickChart({
 				height={CHART_HEIGHT}
 				viewBox={`0 0 ${chart.width} ${CHART_HEIGHT}`}
 				role="img"
-				aria-label={`${getTimeframeLabel(timeframe)}線圖`}
+				aria-label={
+					isIntraday
+						? `${timeframe} 分線圖`
+						: `${getTimeframeLabel(timeframe)}圖`
+				}
 			>
 				<rect
 					width={chart.width}
@@ -227,13 +271,13 @@ export function CandlestickChart({
 									y2={TOP_GUTTER + chart.plotHeight}
 								/>
 								<text x={x} y={CHART_HEIGHT - 12} textAnchor="middle">
-									{formatTime(candles[index].time, timeframe)}
+									{formatTime(candles[index].time, timeframe, isIntraday)}
 								</text>
 							</g>
 						);
 					})}
 				</g>
-				{timeframe === "1" ? (
+				{chart.isFiveDay ? (
 					<g>
 						<title>5日收盤價折線圖</title>
 						<polyline
@@ -255,7 +299,7 @@ export function CandlestickChart({
 										: "loss";
 							return (
 								<g className={`candlestick ${direction}`} key={candle.time}>
-									<title>{`${formatTime(candle.time, timeframe)} 開 ${formatPrice(candle.open)} 高 ${formatPrice(candle.high)} 低 ${formatPrice(candle.low)} 收 ${formatPrice(candle.close)}`}</title>
+									<title>{`${formatTime(candle.time, timeframe, isIntraday)} 開 ${formatPrice(candle.open)} 高 ${formatPrice(candle.high)} 低 ${formatPrice(candle.low)} 收 ${formatPrice(candle.close)}`}</title>
 									<line
 										x1={x}
 										x2={x}

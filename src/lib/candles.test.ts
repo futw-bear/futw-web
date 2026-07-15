@@ -11,7 +11,7 @@ describe("candles", () => {
 	it("uses intraday candles while the market is open", async () => {
 		const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input) => {
 			if (String(input).includes("/intraday/quote/")) {
-				return new Response(JSON.stringify({ isOpen: true, isClose: false }), {
+				return new Response(JSON.stringify({ isClose: false }), {
 					status: 200,
 				});
 			}

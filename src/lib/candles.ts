@@ -297,15 +297,13 @@ export async function downloadCandlesForMarketSession({
 	const isMinuteTimeframe = MINUTE_TIMEFRAMES.includes(
 		timeframe as MinuteTimeframe,
 	);
-	if (quote.isOpen && !isMinuteTimeframe) {
+	const isMarketOpen = !quote.isClose;
+	if (isMarketOpen && !isMinuteTimeframe) {
 		throw new Error("Open-market candles require a minute timeframe.");
 	}
-	if (!quote.isOpen && !quote.isClose) {
-		throw new Error("Unable to determine the current market session.");
-	}
 
-	const marketSession: MarketSession = quote.isOpen ? "open" : "closed";
-	const path = quote.isOpen
+	const marketSession: MarketSession = isMarketOpen ? "open" : "closed";
+	const path = isMarketOpen
 		? "/proxy/market-data/intraday/candles"
 		: "/proxy/market-data/historical/candles";
 	const defaultRange = getCandleDateRange(timeframe, now);
@@ -313,8 +311,8 @@ export async function downloadCandlesForMarketSession({
 		? { from: from ?? defaultRange.from, to: to ?? defaultRange.to }
 		: null;
 	const parameters = new URLSearchParams({ timeframe });
-	if (!quote.isOpen && range) parameters.set("from", range.from);
-	if (!quote.isOpen && range) parameters.set("to", range.to);
+	if (!isMarketOpen && range) parameters.set("from", range.from);
+	if (!isMarketOpen && range) parameters.set("to", range.to);
 	const serverAddress = normalizeServerAddress(credentials.serverAddress);
 	const response = await fetcher(
 		`${serverAddress}${path}/${encodeURIComponent(code)}?${parameters}`,
