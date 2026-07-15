@@ -1,3 +1,4 @@
+import { getPublicApiUrl, PUBLIC_API_SERVER_HOST } from "./api-server";
 import {
 	getAppServiceWorkerRegistration,
 	getNextTaipeiRefreshAt,
@@ -59,7 +60,7 @@ export async function downloadPrices(
 	const marketPrices = await Promise.all(
 		PRICE_MARKETS.map(async (market) => {
 			const response = await fetcher(
-				`/api/pub/prices?market=${encodeURIComponent(market)}`,
+				getPublicApiUrl(`/api/pub/prices?market=${encodeURIComponent(market)}`),
 				{
 					cache: "no-store",
 					headers: { accept: "application/json" },
@@ -154,6 +155,10 @@ export async function initializePricesSync() {
 
 	const registration = await registrationPromise;
 	if (registration) {
+		registration.active?.postMessage({
+			type: "SET_PUBLIC_API_SERVER_HOST",
+			apiServerHost: PUBLIC_API_SERVER_HOST,
+		});
 		await registerDailyPeriodicSync(registration, PRICES_PERIODIC_SYNC_TAG);
 
 		if (snapshot) {
