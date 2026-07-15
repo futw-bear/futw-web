@@ -5,9 +5,13 @@ import { useEffect, useState } from "react";
 import { MainNavigation, PageHeader } from "#/components/app-shell";
 import {
 	downloadIntradayQuotes,
+	type IntradayQuote,
 	toIntradayQuoteDisplay,
 } from "#/lib/intraday-quotes";
-import { getAuthenticatedServerCredentials } from "#/lib/server-auth";
+import {
+	getAuthenticatedServerCredentials,
+	normalizeServerAddress,
+} from "#/lib/server-auth";
 import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
 import { getWatchlistStocks, removeWatchlistTicker } from "#/lib/watchlist";
 
@@ -21,6 +25,29 @@ function resetStockQuote(stock: ReturnType<typeof getWatchlistStocks>[number]) {
 		percent: "--",
 		direction: "neutral" as const,
 	};
+}
+
+function getMarketDataWebSocketUrl(serverAddress: string) {
+	const url = new URL(normalizeServerAddress(serverAddress));
+	url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+	url.pathname = `${url.pathname}/proxy/market-data/ws`.replace(/\/{2,}/g, "/");
+	url.search = "?mode=speed";
+	return url.toString();
+}
+
+function getLiveQuoteDisplay(price: number, quote: IntradayQuote) {
+	const change = quote.openPrice === null ? null : price - quote.openPrice;
+	const changePercent =
+		quote.openPrice === null || quote.openPrice === 0 || change === null
+			? null
+			: (change / quote.openPrice) * 100;
+
+	return toIntradayQuoteDisplay({
+		...quote,
+		closePrice: price,
+		change,
+		changePercent,
+	});
 }
 
 function Home() {
@@ -38,8 +65,14 @@ function Home() {
 	useEffect(() => {
 		let cancelled = false;
 		let refreshVersion = 0;
+		let marketDataSocket: WebSocket | null = null;
+		const closeMarketDataSocket = () => {
+			marketDataSocket?.close();
+			marketDataSocket = null;
+		};
 		const refreshStocks = () => {
 			const currentRefreshVersion = ++refreshVersion;
+			closeMarketDataSocket();
 			const storedStocks = getWatchlistStocks();
 			setStocks(
 				serverCredentials ? storedStocks.map(resetStockQuote) : storedStocks,
@@ -59,6 +92,66 @@ function Home() {
 							...toIntradayQuoteDisplay(quotes[index]),
 						})),
 					);
+					if (
+						quotes.every((quote) => quote.isClose) ||
+						typeof WebSocket === "undefined"
+					) {
+						return;
+					}
+
+					const quotesByTicker = new Map(
+						quotes.map((quote) => [quote.code, quote]),
+					);
+					marketDataSocket = new WebSocket(
+						getMarketDataWebSocketUrl(serverCredentials.serverAddress),
+					);
+					marketDataSocket.onopen = () => {
+						marketDataSocket?.send(
+							JSON.stringify({
+								event: "subscribe",
+								data: {
+									channel: "trades",
+									symbols: storedStocks.map(({ ticker }) => ticker),
+								},
+							}),
+						);
+					};
+					marketDataSocket.onmessage = (event) => {
+						try {
+							const message: unknown = JSON.parse(String(event.data));
+							if (
+								typeof message !== "object" ||
+								message === null ||
+								!("event" in message) ||
+								message.event !== "data" ||
+								!("data" in message) ||
+								typeof message.data !== "object" ||
+								message.data === null ||
+								!("symbol" in message.data) ||
+								!("price" in message.data) ||
+								typeof message.data.symbol !== "string" ||
+								typeof message.data.price !== "number" ||
+								!Number.isFinite(message.data.price)
+							) {
+								return;
+							}
+
+							const quote = quotesByTicker.get(message.data.symbol);
+							if (!quote) return;
+							setStocks((currentStocks) =>
+								currentStocks.map((stock) =>
+									stock.ticker === message.data.symbol
+										? {
+												...stock,
+												...getLiveQuoteDisplay(message.data.price, quote),
+											}
+										: stock,
+								),
+							);
+						} catch {
+							// Ignore malformed WebSocket messages.
+						}
+					};
 				})
 				.catch(() => {
 					if (!cancelled) setLiveQuoteError(true);
@@ -70,6 +163,7 @@ function Home() {
 
 		return () => {
 			cancelled = true;
+			closeMarketDataSocket();
 			window.removeEventListener("storage", refreshStocks);
 			window.removeEventListener(MARKET_DATA_UPDATED_EVENT, refreshStocks);
 		};

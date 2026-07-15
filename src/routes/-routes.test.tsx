@@ -6,6 +6,7 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import {
+	cleanup,
 	fireEvent,
 	render,
 	screen,
@@ -69,6 +70,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	cleanup();
+	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
 });
 
@@ -140,6 +143,74 @@ describe("application routes", () => {
 		expect(
 			page.getByRole("link", { name: /台積電/ }).getAttribute("href"),
 		).toBe("/stocks/2330");
+	});
+
+	it("subscribes to intraday watchlist trades and updates prices from WebSocket data", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		vi.spyOn(window, "fetch").mockImplementation(
+			async () =>
+				new Response(
+					JSON.stringify({
+						openPrice: 100,
+						closePrice: 101,
+						change: 1,
+						changePercent: 1,
+						isClose: false,
+					}),
+					{ status: 200 },
+				),
+		);
+		let socket: MockWebSocket | null = null;
+		let socketUrl = "";
+		class MockWebSocket {
+			close = vi.fn();
+			send = vi.fn();
+			onmessage: ((event: MessageEvent) => void) | null = null;
+			onopen: (() => void) | null = null;
+
+			constructor(url: string) {
+				socketUrl = url;
+				socket = this;
+			}
+		}
+		vi.stubGlobal("WebSocket", MockWebSocket);
+
+		const { container, unmount } = renderRoute("/");
+		const page = within(container);
+		await waitFor(() => expect(socket?.onopen).not.toBeNull());
+		expect(socketUrl).toBe(
+			"wss://data.example.com/proxy/market-data/ws?mode=speed",
+		);
+
+		socket?.onopen?.();
+		expect(socket?.send).toHaveBeenCalledWith(
+			JSON.stringify({
+				event: "subscribe",
+				data: {
+					channel: "trades",
+					symbols: ["2330", "2317", "0050", "2454", "2412", "2884"],
+				},
+			}),
+		);
+
+		socket?.onmessage?.(
+			new MessageEvent("message", {
+				data: JSON.stringify({
+					event: "data",
+					data: { symbol: "2330", price: 105 },
+				}),
+			}),
+		);
+		expect(await page.findByText("105.00")).toBeTruthy();
+		expect(page.getByText("+5.00")).toBeTruthy();
+		expect(page.getByText("+5.00%")).toBeTruthy();
+
+		unmount();
+		expect(socket?.close).toHaveBeenCalled();
 	});
 
 	it("requires login when a stock detail URL is opened directly", async () => {
