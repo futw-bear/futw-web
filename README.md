@@ -2,6 +2,16 @@
 
 富台熊熊 Web 版是一個 [PWA](https://developer.mozilla.org/zh-TW/docs/Web/Progressive_web_apps) 應用程式，用戶能夠在這上面方便地取用台股資訊；搭配 [Rabang OSS](https://github.com/futw-bear/rabang-oss) 還能夠獲取即時資訊與帳戶資料。
 
+## 公開 API 伺服器
+
+未登入狀態下的公開 API 預設使用同源的 `/api` 路徑。若要改用其他伺服器，請在部署環境或 `.env` 設定 `VITE_API_SERVER_HOST`，例如：
+
+```dotenv
+VITE_API_SERVER_HOST=https://api.example.com
+```
+
+設定後，證券、收盤價及市場指數的公開 API 請求會改為送往該 host；未登入時的背景同步也會使用相同設定。登入後的帳戶與即時行情仍以使用者登入時設定的伺服器位址為準。
+
 ## 證券列表同步
 
 應用程式首次開啟時會透過 `GET /api/pub/securities` 下載證券列表，並儲存在瀏覽器的 `localStorage`。之後會以台灣時間每日 08:00 為更新分界，在應用程式開啟、重新回到前景或恢復連線時補充更新。

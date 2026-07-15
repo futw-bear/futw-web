@@ -1,7 +1,9 @@
-const SECURITIES_API_URLS = [
+const SECURITIES_API_PATHS = [
 	"/api/pub/securities?type=2",
 	"/api/pub/securities?type=4",
 ];
+const API_SERVER_CONFIG_CACHE = "futw-api-server-config-v1";
+const API_SERVER_HOST_KEY = "/__futw/public-api-server-host";
 const SECURITIES_CACHE = "futw-securities-v1";
 const SECURITIES_CACHE_KEY = "/__futw/securities";
 const SECURITIES_METADATA_KEY = "/__futw/securities-metadata";
@@ -76,9 +78,55 @@ async function notifyClients(message) {
 	}
 }
 
+async function getPublicApiServerHost() {
+	const cache = await caches.open(API_SERVER_CONFIG_CACHE);
+	const response = await cache.match(API_SERVER_HOST_KEY);
+	if (!response) return "";
+
+	try {
+		const { apiServerHost } = await response.json();
+		return typeof apiServerHost === "string" ? apiServerHost : "";
+	} catch {
+		return "";
+	}
+}
+
+async function getPublicApiUrl(path) {
+	const apiServerHost = await getPublicApiServerHost();
+	if (!apiServerHost) return path;
+
+	try {
+		const url = new URL(apiServerHost);
+		const apiPath = new URL(path, "https://public-api.invalid");
+		if (url.protocol !== "http:" && url.protocol !== "https:") return path;
+		url.search = "";
+		url.hash = "";
+		url.pathname = `${url.pathname.replace(/\/+$/, "")}${apiPath.pathname}`.replace(
+			/\/{2,}/g,
+			"/",
+		);
+		url.search = apiPath.search;
+		url.hash = apiPath.hash;
+		return url.toString();
+	} catch {
+		return path;
+	}
+}
+
+async function storePublicApiServerHost(apiServerHost) {
+	const cache = await caches.open(API_SERVER_CONFIG_CACHE);
+	await cache.put(
+		API_SERVER_HOST_KEY,
+		new Response(JSON.stringify({ apiServerHost }), {
+			headers: { "content-type": "application/json" },
+		}),
+	);
+}
+
 async function downloadAndStoreSecurities() {
 	const securities = await Promise.all(
-		SECURITIES_API_URLS.map(async (url) => {
+		SECURITIES_API_PATHS.map(async (path) => {
+			const url = await getPublicApiUrl(path);
 			const response = await fetch(url, {
 				cache: "no-store",
 				headers: { accept: "application/json" },
@@ -137,8 +185,11 @@ async function storePricesSnapshot(prices, syncedAt) {
 async function downloadAndStorePrices() {
 	const marketPrices = await Promise.all(
 		PRICE_MARKETS.map(async (market) => {
-			const response = await fetch(
+			const url = await getPublicApiUrl(
 				`/api/pub/prices?market=${encodeURIComponent(market)}`,
+			);
+			const response = await fetch(
+				url,
 				{
 					cache: "no-store",
 					headers: { accept: "application/json" },
@@ -188,6 +239,10 @@ self.addEventListener("periodicsync", (event) => {
 });
 
 self.addEventListener("message", (event) => {
+	if (event.data?.type === "SET_PUBLIC_API_SERVER_HOST") {
+		event.waitUntil(storePublicApiServerHost(event.data.apiServerHost));
+	}
+
 	if (event.data?.type === "STORE_SECURITIES") {
 		event.waitUntil(
 			storeSnapshot(event.data.securities, event.data.syncedAt),

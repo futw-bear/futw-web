@@ -1,3 +1,4 @@
+import { getPublicApiUrl, PUBLIC_API_SERVER_HOST } from "./api-server";
 import {
 	getAppServiceWorkerRegistration,
 	getNextTaipeiRefreshAt,
@@ -7,8 +8,8 @@ import {
 import { notifyMarketDataUpdated } from "./storage-events";
 
 export const SECURITIES_API_URLS = [
-	"/api/pub/securities?type=2",
-	"/api/pub/securities?type=4",
+	getPublicApiUrl("/api/pub/securities?type=2"),
+	getPublicApiUrl("/api/pub/securities?type=4"),
 ] as const;
 export const SECURITIES_STORAGE_KEY = "securities";
 export const SECURITIES_SYNCED_AT_KEY = "securities:last-synced-at";
@@ -144,6 +145,10 @@ export async function initializeSecuritiesSync() {
 
 	registration = await registrationPromise;
 	if (registration) {
+		registration.active?.postMessage({
+			type: "SET_PUBLIC_API_SERVER_HOST",
+			apiServerHost: PUBLIC_API_SERVER_HOST,
+		});
 		await registerDailyPeriodicSync(registration, SECURITIES_PERIODIC_SYNC_TAG);
 		if (snapshot) {
 			sendSnapshotToServiceWorker(registration, snapshot);

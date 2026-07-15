@@ -1,11 +1,16 @@
+import { getPublicApiUrl } from "./api-server";
 import {
 	downloadIntradayQuotes,
 	toIntradayQuoteDisplay,
 } from "./intraday-quotes";
 import type { ServerCredentials } from "./server-auth";
 
-export const TSE_MARKET_INDEX_API_URL = "/api/pub/market_index?market=TSE";
-export const OTC_MARKET_INDEX_API_URL = "/api/pub/market_index?market=OTC";
+export const TSE_MARKET_INDEX_API_URL = getPublicApiUrl(
+	"/api/pub/market_index?market=TSE",
+);
+export const OTC_MARKET_INDEX_API_URL = getPublicApiUrl(
+	"/api/pub/market_index?market=OTC",
+);
 
 type Fetcher = typeof fetch;
 type UnknownRecord = Record<string, unknown>;
