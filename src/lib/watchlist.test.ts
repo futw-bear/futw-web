@@ -6,6 +6,8 @@ import {
 	DEFAULT_WATCHLIST,
 	getStoredWatchlist,
 	getWatchlistStocks,
+	removeWatchlistTicker,
+	toggleWatchlistTicker,
 	WATCHLIST_STORAGE_KEY,
 } from "./watchlist";
 
@@ -38,6 +40,18 @@ describe("watchlist storage", () => {
 		});
 
 		expect(getStoredWatchlist(storage)).toEqual([]);
+	});
+
+	it("toggles and removes watchlist tickers without duplicates", () => {
+		const storage = createMemoryStorage({
+			[WATCHLIST_STORAGE_KEY]: JSON.stringify(["2330", "2317"]),
+		});
+
+		expect(toggleWatchlistTicker("2330", storage)).toEqual(["2317"]);
+		expect(toggleWatchlistTicker("0050", storage)).toEqual(["2317", "0050"]);
+		expect(toggleWatchlistTicker("0050", storage)).toEqual(["2317"]);
+		expect(removeWatchlistTicker("2317", storage)).toEqual([]);
+		expect(storage.getItem(WATCHLIST_STORAGE_KEY)).toBe("[]");
 	});
 
 	it("joins names and TSE prices from localStorage", () => {

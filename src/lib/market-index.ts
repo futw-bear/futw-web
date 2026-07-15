@@ -1,3 +1,9 @@
+import {
+	downloadIntradayQuotes,
+	toIntradayQuoteDisplay,
+} from "./intraday-quotes";
+import type { ServerCredentials } from "./server-auth";
+
 export const TSE_MARKET_INDEX_API_URL = "/api/pub/market_index?market=TSE";
 export const OTC_MARKET_INDEX_API_URL = "/api/pub/market_index?market=OTC";
 
@@ -52,6 +58,14 @@ const TSE_INDEXES = [
 	{ name: "電子指數", sourceName: "電子工業類指數", compact: true },
 	{ name: "金融指數", sourceName: "金融保險類指數", compact: true },
 	{ name: "半導體指數", sourceName: "半導體類指數", compact: true },
+] as const;
+
+export const INTRADAY_MARKET_INDEXES = [
+	{ name: "加權指數", code: "IX0001", compact: false },
+	{ name: "櫃買指數", code: "IX0043", compact: false },
+	{ name: "電子指數", code: "IX0027", compact: true },
+	{ name: "金融指數", code: "IX0039", compact: true },
+	{ name: "半導體指數", code: "IX0028", compact: true },
 ] as const;
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -234,4 +248,28 @@ export async function downloadMarketIndexes(
 		toMarketIndex("櫃買指數", latestOtcRecord, false),
 		...tseIndexes.slice(1),
 	];
+}
+
+export async function downloadIntradayMarketIndexes(
+	credentials: ServerCredentials,
+	fetcher: Fetcher = fetch,
+): Promise<MarketIndex[]> {
+	const quotes = await downloadIntradayQuotes(
+		INTRADAY_MARKET_INDEXES.map(({ code }) => code),
+		credentials,
+		fetcher,
+	);
+
+	return INTRADAY_MARKET_INDEXES.map(({ name, compact }, index) => {
+		const quote = toIntradayQuoteDisplay(quotes[index]);
+		return {
+			name,
+			compact,
+			date: "--",
+			value: quote.price,
+			change: quote.change,
+			percent: quote.percent,
+			direction: quote.direction,
+		};
+	});
 }

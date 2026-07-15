@@ -1,3 +1,5 @@
+import { notifyMarketDataUpdated } from "./storage-events";
+
 export const WATCHLIST_STORAGE_KEY = "watchlist";
 export const DEFAULT_WATCHLIST = [
 	"2330",
@@ -234,6 +236,43 @@ export function getStoredWatchlist(storage: StorageLike = window.localStorage) {
 	const defaults = [...DEFAULT_WATCHLIST];
 	storage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(defaults));
 	return defaults;
+}
+
+export function storeWatchlist(
+	tickers: string[],
+	storage: StorageLike = window.localStorage,
+) {
+	const normalizedTickers = Array.from(
+		new Set(tickers.map(normalizeTicker).filter((ticker) => ticker !== null)),
+	);
+	storage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(normalizedTickers));
+	notifyMarketDataUpdated(storage);
+	return normalizedTickers;
+}
+
+export function toggleWatchlistTicker(
+	ticker: string,
+	storage: StorageLike = window.localStorage,
+) {
+	const normalizedTicker = normalizeTicker(ticker);
+	if (!normalizedTicker) return getStoredWatchlist(storage);
+	const watchlist = getStoredWatchlist(storage);
+	return storeWatchlist(
+		watchlist.includes(normalizedTicker)
+			? watchlist.filter((item) => item !== normalizedTicker)
+			: [...watchlist, normalizedTicker],
+		storage,
+	);
+}
+
+export function removeWatchlistTicker(
+	ticker: string,
+	storage: StorageLike = window.localStorage,
+) {
+	return storeWatchlist(
+		getStoredWatchlist(storage).filter((item) => item !== ticker.trim()),
+		storage,
+	);
 }
 
 export function getWatchlistStocks(

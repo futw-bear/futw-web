@@ -16,7 +16,12 @@ const config = defineConfig({
   ],
   server: {
     proxy: {
-      "/api": "http://localhost:4000"
+      "/api": "http://localhost:4000",
+      "/proxy": "http://localhost:4000",
+      "/proxy/market-data/ws": {
+        target: "ws://localhost:4000",
+        ws: true
+      }
     },
   }
 })

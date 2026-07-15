@@ -1,26 +1,173 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowUpDown, Pencil, Plus, Search } from "lucide-react";
+import { ArrowUpDown, CircleMinus, Pencil, Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
+import {
+	downloadIntradayQuotes,
+	type IntradayQuote,
+	toIntradayQuoteDisplay,
+} from "#/lib/intraday-quotes";
+import {
+	getAuthenticatedServerCredentials,
+	normalizeServerAddress,
+} from "#/lib/server-auth";
 import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
-import { getWatchlistStocks } from "#/lib/watchlist";
+import { getWatchlistStocks, removeWatchlistTicker } from "#/lib/watchlist";
 
 export const Route = createFileRoute("/")({ component: Home });
 
+function resetStockQuote(stock: ReturnType<typeof getWatchlistStocks>[number]) {
+	return {
+		...stock,
+		price: "--",
+		change: "--",
+		percent: "--",
+		direction: "neutral" as const,
+	};
+}
+
+function getMarketDataWebSocketUrl(serverAddress: string) {
+	const url = new URL(normalizeServerAddress(serverAddress));
+	url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+	url.pathname = `${url.pathname}/proxy/market-data/ws`.replace(/\/{2,}/g, "/");
+	url.search = "?mode=speed";
+	return url.toString();
+}
+
+function getLiveQuoteDisplay(price: number, quote: IntradayQuote) {
+	const change = quote.openPrice === null ? null : price - quote.openPrice;
+	const changePercent =
+		quote.openPrice === null || quote.openPrice === 0 || change === null
+			? null
+			: (change / quote.openPrice) * 100;
+
+	return toIntradayQuoteDisplay({
+		...quote,
+		closePrice: price,
+		change,
+		changePercent,
+	});
+}
+
 function Home() {
-	const [stocks, setStocks] = useState(() => getWatchlistStocks());
+	const [serverCredentials] = useState(() =>
+		getAuthenticatedServerCredentials(),
+	);
+	const isAuthenticated = serverCredentials !== null;
+	const [stocks, setStocks] = useState(() => {
+		const storedStocks = getWatchlistStocks();
+		return isAuthenticated ? storedStocks.map(resetStockQuote) : storedStocks;
+	});
+	const [liveQuoteError, setLiveQuoteError] = useState(false);
+	const [isEditing, setIsEditing] = useState(false);
 
 	useEffect(() => {
-		const refreshStocks = () => setStocks(getWatchlistStocks());
+		let cancelled = false;
+		let refreshVersion = 0;
+		let marketDataSocket: WebSocket | null = null;
+		const closeMarketDataSocket = () => {
+			marketDataSocket?.close();
+			marketDataSocket = null;
+		};
+		const refreshStocks = () => {
+			const currentRefreshVersion = ++refreshVersion;
+			closeMarketDataSocket();
+			const storedStocks = getWatchlistStocks();
+			setStocks(
+				serverCredentials ? storedStocks.map(resetStockQuote) : storedStocks,
+			);
+			setLiveQuoteError(false);
+			if (!serverCredentials) return;
+
+			void downloadIntradayQuotes(
+				storedStocks.map(({ ticker }) => ticker),
+				serverCredentials,
+			)
+				.then((quotes) => {
+					if (cancelled || currentRefreshVersion !== refreshVersion) return;
+					setStocks(
+						storedStocks.map((stock, index) => ({
+							...stock,
+							...toIntradayQuoteDisplay(quotes[index]),
+						})),
+					);
+					if (
+						quotes.every((quote) => quote.isClose) ||
+						typeof WebSocket === "undefined"
+					) {
+						return;
+					}
+
+					const quotesByTicker = new Map(
+						quotes.map((quote) => [quote.code, quote]),
+					);
+					marketDataSocket = new WebSocket(
+						getMarketDataWebSocketUrl(serverCredentials.serverAddress),
+					);
+					marketDataSocket.onopen = () => {
+						marketDataSocket?.send(
+							JSON.stringify({
+								event: "subscribe",
+								data: {
+									channel: "trades",
+									symbols: storedStocks.map(({ ticker }) => ticker),
+								},
+							}),
+						);
+					};
+					marketDataSocket.onmessage = (event) => {
+						try {
+							const message: unknown = JSON.parse(String(event.data));
+							if (
+								typeof message !== "object" ||
+								message === null ||
+								!("event" in message) ||
+								message.event !== "data" ||
+								!("data" in message) ||
+								typeof message.data !== "object" ||
+								message.data === null ||
+								!("symbol" in message.data) ||
+								!("price" in message.data) ||
+								typeof message.data.symbol !== "string" ||
+								typeof message.data.price !== "number" ||
+								!Number.isFinite(message.data.price)
+							) {
+								return;
+							}
+
+							const quote = quotesByTicker.get(message.data.symbol);
+							if (!quote) return;
+							setStocks((currentStocks) =>
+								currentStocks.map((stock) =>
+									stock.ticker === message.data.symbol
+										? {
+												...stock,
+												...getLiveQuoteDisplay(message.data.price, quote),
+											}
+										: stock,
+								),
+							);
+						} catch {
+							// Ignore malformed WebSocket messages.
+						}
+					};
+				})
+				.catch(() => {
+					if (!cancelled) setLiveQuoteError(true);
+				});
+		};
+		refreshStocks();
 		window.addEventListener("storage", refreshStocks);
 		window.addEventListener(MARKET_DATA_UPDATED_EVENT, refreshStocks);
 
 		return () => {
+			cancelled = true;
+			closeMarketDataSocket();
 			window.removeEventListener("storage", refreshStocks);
 			window.removeEventListener(MARKET_DATA_UPDATED_EVENT, refreshStocks);
 		};
-	}, []);
+	}, [serverCredentials]);
 
 	const visibleStocks = stocks;
 	const earliestDataDate = visibleStocks.reduce<string | null>(
@@ -43,7 +190,14 @@ function Home() {
 					}
 				/>
 
-				<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
+				{!isAuthenticated && (
+					<div className="hint">資料更新於 {earliestDataDate ?? "--"}</div>
+				)}
+				{liveQuoteError && (
+					<div className="market-data-state" role="alert">
+						即時行情暫時無法取得，請稍後再試。
+					</div>
+				)}
 
 				<div className="watchlist-toolbar" aria-hidden="true">
 					<span />
@@ -58,27 +212,66 @@ function Home() {
 				<section className="watchlist" aria-label="自選清單">
 					{visibleStocks.map((stock) => (
 						<div className="watchlist-row" key={stock.ticker}>
-							<div className="security-name">
-								<Link to="/stocks/$ticker" params={{ ticker: stock.ticker }}>
-									<strong>{stock.name}</strong>
-									<small>{stock.ticker}</small>
-								</Link>
+							<div className={`security-name ${isEditing ? "editing" : ""}`}>
+								{isEditing && (
+									<button
+										className="watchlist-remove-button"
+										type="button"
+										aria-label={`將${stock.name}移出自選列表`}
+										onClick={() => removeWatchlistTicker(stock.ticker)}
+									>
+										<CircleMinus aria-hidden="true" />
+									</button>
+								)}
+								{isAuthenticated ? (
+									<Link to="/stocks/$ticker" params={{ ticker: stock.ticker }}>
+										<strong>{stock.name}</strong>
+										<small>{stock.ticker}</small>
+									</Link>
+								) : (
+									<span
+										className="security-name__disabled"
+										aria-disabled="true"
+									>
+										<strong>{stock.name}</strong>
+										<small>{stock.ticker}</small>
+									</span>
+								)}
 							</div>
-							<Link
-								className={`stock-price ${stock.direction}`}
-								to="/stocks/$ticker"
-								params={{ ticker: stock.ticker }}
-							>
-								{stock.price}
-							</Link>
-							<Link
-								className={`change-pill ${stock.direction}`}
-								to="/stocks/$ticker"
-								params={{ ticker: stock.ticker }}
-							>
-								<strong>{stock.change}</strong>
-								<small>{stock.percent}</small>
-							</Link>
+							{isAuthenticated ? (
+								<Link
+									className={`stock-price ${stock.direction}`}
+									to="/stocks/$ticker"
+									params={{ ticker: stock.ticker }}
+								>
+									{stock.price}
+								</Link>
+							) : (
+								<span
+									className={`stock-price ${stock.direction}`}
+									aria-disabled="true"
+								>
+									{stock.price}
+								</span>
+							)}
+							{isAuthenticated ? (
+								<Link
+									className={`change-pill ${stock.direction}`}
+									to="/stocks/$ticker"
+									params={{ ticker: stock.ticker }}
+								>
+									<strong>{stock.change}</strong>
+									<small>{stock.percent}</small>
+								</Link>
+							) : (
+								<span
+									className={`change-pill ${stock.direction}`}
+									aria-disabled="true"
+								>
+									<strong>{stock.change}</strong>
+									<small>{stock.percent}</small>
+								</span>
+							)}
 						</div>
 					))}
 				</section>
@@ -92,9 +285,13 @@ function Home() {
 						<Plus />
 						新增自選
 					</Link>
-					<button type="button">
+					<button
+						type="button"
+						aria-pressed={isEditing}
+						onClick={() => setIsEditing((editing) => !editing)}
+					>
 						<Pencil />
-						編輯自選
+						{isEditing ? "完成編輯" : "編輯自選"}
 					</button>
 				</div>
 			</main>
