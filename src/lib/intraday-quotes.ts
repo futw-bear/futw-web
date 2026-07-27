@@ -6,6 +6,7 @@ type UnknownRecord = Record<string, unknown>;
 export type IntradayQuote = {
 	code: string;
 	openPrice: number | null;
+	previousClose: number | null;
 	closePrice: number | null;
 	change: number | null;
 	changePercent: number | null;
@@ -29,6 +30,7 @@ function hasQuoteFields(record: UnknownRecord) {
 		"closePrice" in record ||
 		"openPrice" in record ||
 		"openingPrice" in record ||
+		"previousClose" in record ||
 		"change" in record ||
 		"changePercent" in record ||
 		"isOpen" in record ||
@@ -119,6 +121,7 @@ export async function downloadIntradayQuote(
 	return {
 		code,
 		openPrice: parseNumber(record?.openPrice ?? record?.openingPrice),
+		previousClose: parseNumber(record?.previousClose),
 		closePrice: parseNumber(record?.closePrice),
 		change: parseNumber(record?.change),
 		changePercent: parseNumber(record?.changePercent),

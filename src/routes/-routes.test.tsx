@@ -88,6 +88,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	cleanup();
+	vi.useRealTimers();
 	setWebSocket(originalWebSocket);
 	vi.restoreAllMocks();
 });
@@ -162,49 +163,90 @@ describe("application routes", () => {
 		).toBe("/stocks/2330");
 	});
 
-	it("subscribes to intraday watchlist trades and updates prices from WebSocket data", async () => {
+	it("retries failed initial watchlist quotes five times at ten-second intervals", async () => {
 		localStorage.setItem(
 			SERVER_ADDRESS_STORAGE_KEY,
 			"https://data.example.com",
 		);
 		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		const fetcher = vi
+			.spyOn(window, "fetch")
+			.mockRejectedValue(new Error("Market data unavailable"));
+		setWebSocket(undefined);
+		const retryDelays: number[] = [];
+		const originalSetTimeout = window.setTimeout.bind(window);
+		vi.spyOn(window, "setTimeout").mockImplementation(
+			(handler: TimerHandler, delay?: number, ...arguments_) => {
+				if (delay === 10_000 && typeof handler === "function") {
+					retryDelays.push(delay);
+					queueMicrotask(() => handler(...arguments_));
+					return 1;
+				}
+				return originalSetTimeout(handler, delay, ...arguments_);
+			},
+		);
+
+		const { container, unmount } = renderRoute("/");
+		const page = within(container);
+		await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(36));
+		expect(page.getByRole("alert").textContent).toContain(
+			"即時行情暫時無法取得",
+		);
+		expect(retryDelays).toEqual([10_000, 10_000, 10_000, 10_000, 10_000]);
+		await act(async () => {});
+		expect(fetcher).toHaveBeenCalledTimes(36);
+
+		unmount();
+	});
+
+	it("updates watchlist prices and reconnects after a WebSocket error", async () => {
+		localStorage.setItem(
+			SERVER_ADDRESS_STORAGE_KEY,
+			"https://data.example.com",
+		);
+		localStorage.setItem(AUTH_PASSWORD_STORAGE_KEY, "secret-token");
+		let marketIsClosed = false;
 		vi.spyOn(window, "fetch").mockImplementation(
 			async () =>
 				new Response(
 					JSON.stringify({
 						openPrice: 100,
+						previousClose: 90,
 						closePrice: 101,
 						change: 1,
 						changePercent: 1,
-						isClose: false,
+						isClose: marketIsClosed,
 					}),
 					{ status: 200 },
 				),
 		);
-		let socket: MockWebSocket | null = null;
+		const sockets: MockWebSocket[] = [];
 		let socketUrl = "";
 		class MockWebSocket {
 			close = vi.fn();
 			send = vi.fn();
+			onclose: (() => void) | null = null;
+			onerror: (() => void) | null = null;
 			onmessage: ((event: MessageEvent) => void) | null = null;
 			onopen: (() => void) | null = null;
 
 			constructor(url: string) {
 				socketUrl = url;
-				socket = this;
+				sockets.push(this);
 			}
 		}
 		setWebSocket(MockWebSocket as unknown as typeof WebSocket);
 
 		const { container, unmount } = renderRoute("/");
 		const page = within(container);
-		await waitFor(() => expect(socket?.onopen).not.toBeNull());
+		await waitFor(() => expect(sockets).toHaveLength(1));
 		expect(socketUrl).toBe(
 			"wss://data.example.com/proxy/market-data/ws?mode=speed",
 		);
 
-		socket?.onopen?.();
-		expect(socket?.send).toHaveBeenCalledWith(
+		const firstSocket = sockets[0];
+		firstSocket.onopen?.();
+		expect(firstSocket.send).toHaveBeenCalledWith(
 			JSON.stringify({
 				event: "subscribe",
 				data: {
@@ -214,7 +256,7 @@ describe("application routes", () => {
 			}),
 		);
 
-		socket?.onmessage?.(
+		firstSocket.onmessage?.(
 			new MessageEvent("message", {
 				data: JSON.stringify({
 					event: "data",
@@ -223,11 +265,46 @@ describe("application routes", () => {
 			}),
 		);
 		expect(await page.findByText("105.00")).toBeTruthy();
-		expect(page.getByText("+5.00")).toBeTruthy();
-		expect(page.getByText("+5.00%")).toBeTruthy();
+		expect(page.getByText("+15.00")).toBeTruthy();
+		expect(page.getByText("+16.67%")).toBeTruthy();
+
+		vi.useFakeTimers();
+		act(() => firstSocket.onerror?.());
+		expect(firstSocket.close).toHaveBeenCalled();
+		expect(page.getByRole("alert").textContent).toContain(
+			"即時行情暫時無法取得",
+		);
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(3_000);
+		});
+		expect(sockets).toHaveLength(2);
+
+		const secondSocket = sockets[1];
+		act(() => secondSocket.onopen?.());
+		expect(secondSocket.send).toHaveBeenCalled();
+		expect(page.queryByRole("alert")).toBeNull();
+
+		act(() => secondSocket.onclose?.());
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(3_000);
+		});
+		expect(sockets).toHaveLength(3);
+
+		const thirdSocket = sockets[2];
+		act(() => thirdSocket.onopen?.());
+		marketIsClosed = true;
+		act(() => thirdSocket.onclose?.());
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(3_000);
+		});
+		expect(sockets).toHaveLength(3);
+		expect(page.queryByRole("alert")).toBeNull();
 
 		unmount();
-		expect(socket?.close).toHaveBeenCalled();
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(3_000);
+		});
+		expect(sockets).toHaveLength(3);
 	});
 
 	it("requires login when a stock detail URL is opened directly", async () => {
@@ -370,6 +447,7 @@ describe("application routes", () => {
 						highPrice: 1040,
 						lowPrice: 1020,
 						openPrice: 1025,
+						previousClose: 1020,
 						isClose: false,
 					}),
 					{ status: 200 },
@@ -419,9 +497,9 @@ describe("application routes", () => {
 		await waitFor(() =>
 			expect(summary.getAllByText("1,050.00")).toHaveLength(2),
 		);
-		expect(summary.getByText("+25.00 +2.44%")).toBeTruthy();
+		expect(summary.getByText("+30.00 +2.94%")).toBeTruthy();
 		expect(summary.getAllByText("1,050.00")).toHaveLength(2);
-		expect(summary.getByText("1,020.00")).toBeTruthy();
+		expect(summary.getAllByText("1,020.00")).toHaveLength(2);
 
 		unmount();
 		expect(socket?.close).toHaveBeenCalled();

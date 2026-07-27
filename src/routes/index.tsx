@@ -3,6 +3,7 @@ import { ArrowUpDown, CircleMinus, Pencil, Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
+import { RollingNumber } from "#/components/rolling-number";
 import {
 	downloadIntradayQuotes,
 	type IntradayQuote,
@@ -14,6 +15,10 @@ import {
 } from "#/lib/server-auth";
 import { MARKET_DATA_UPDATED_EVENT } from "#/lib/storage-events";
 import { getWatchlistStocks, removeWatchlistTicker } from "#/lib/watchlist";
+
+const MARKET_DATA_RECONNECT_DELAY_MS = 3_000;
+const INITIAL_QUOTES_RETRY_DELAY_MS = 10_000;
+const INITIAL_QUOTES_MAX_RETRIES = 5;
 
 export const Route = createFileRoute("/")({ component: Home });
 
@@ -36,11 +41,12 @@ function getMarketDataWebSocketUrl(serverAddress: string) {
 }
 
 function getLiveQuoteDisplay(price: number, quote: IntradayQuote) {
-	const change = quote.openPrice === null ? null : price - quote.openPrice;
+	const change =
+		quote.previousClose === null ? null : price - quote.previousClose;
 	const changePercent =
-		quote.openPrice === null || quote.openPrice === 0 || change === null
+		quote.previousClose === null || quote.previousClose === 0 || change === null
 			? null
-			: (change / quote.openPrice) * 100;
+			: (change / quote.previousClose) * 100;
 
 	return toIntradayQuoteDisplay({
 		...quote,
@@ -66,8 +72,23 @@ function Home() {
 		let cancelled = false;
 		let refreshVersion = 0;
 		let marketDataSocket: WebSocket | null = null;
+		let reconnectTimer: ReturnType<typeof window.setTimeout> | null = null;
+		let initialQuotesRetryTimer: ReturnType<typeof window.setTimeout> | null =
+			null;
 		const closeMarketDataSocket = () => {
-			marketDataSocket?.close();
+			if (reconnectTimer !== null) {
+				window.clearTimeout(reconnectTimer);
+				reconnectTimer = null;
+			}
+			if (initialQuotesRetryTimer !== null) {
+				window.clearTimeout(initialQuotesRetryTimer);
+				initialQuotesRetryTimer = null;
+			}
+			if (marketDataSocket) {
+				marketDataSocket.onclose = null;
+				marketDataSocket.onerror = null;
+				marketDataSocket.close();
+			}
 			marketDataSocket = null;
 		};
 		const refreshStocks = () => {
@@ -80,82 +101,155 @@ function Home() {
 			setLiveQuoteError(false);
 			if (!serverCredentials) return;
 
-			void downloadIntradayQuotes(
-				storedStocks.map(({ ticker }) => ticker),
-				serverCredentials,
-			)
-				.then((quotes) => {
-					if (cancelled || currentRefreshVersion !== refreshVersion) return;
-					setStocks(
-						storedStocks.map((stock, index) => ({
-							...stock,
-							...toIntradayQuoteDisplay(quotes[index]),
-						})),
-					);
-					if (
-						quotes.every((quote) => quote.isClose) ||
-						typeof WebSocket === "undefined"
-					) {
-						return;
-					}
-
-					const quotesByTicker = new Map(
-						quotes.map((quote) => [quote.code, quote]),
-					);
-					marketDataSocket = new WebSocket(
-						getMarketDataWebSocketUrl(serverCredentials.serverAddress),
-					);
-					marketDataSocket.onopen = () => {
-						marketDataSocket?.send(
-							JSON.stringify({
-								event: "subscribe",
-								data: {
-									channel: "trades",
-									symbols: storedStocks.map(({ ticker }) => ticker),
-								},
-							}),
+			let initialQuotesRetryCount = 0;
+			const loadInitialQuotes = () => {
+				void downloadIntradayQuotes(
+					storedStocks.map(({ ticker }) => ticker),
+					serverCredentials,
+				)
+					.then((quotes) => {
+						if (cancelled || currentRefreshVersion !== refreshVersion) return;
+						setStocks(
+							storedStocks.map((stock, index) => ({
+								...stock,
+								...toIntradayQuoteDisplay(quotes[index]),
+							})),
 						);
-					};
-					marketDataSocket.onmessage = (event) => {
-						try {
-							const message: unknown = JSON.parse(String(event.data));
-							if (
-								typeof message !== "object" ||
-								message === null ||
-								!("event" in message) ||
-								message.event !== "data" ||
-								!("data" in message) ||
-								typeof message.data !== "object" ||
-								message.data === null ||
-								!("symbol" in message.data) ||
-								!("price" in message.data) ||
-								typeof message.data.symbol !== "string" ||
-								typeof message.data.price !== "number" ||
-								!Number.isFinite(message.data.price)
-							) {
+						if (
+							quotes.every((quote) => quote.isClose) ||
+							typeof WebSocket === "undefined"
+						) {
+							return;
+						}
+
+						const quotesByTicker = new Map(
+							quotes.map((quote) => [quote.code, quote]),
+						);
+						const isCurrentRefresh = () =>
+							!cancelled && currentRefreshVersion === refreshVersion;
+						const scheduleReconnect = () => {
+							if (!isCurrentRefresh() || reconnectTimer !== null) return;
+							setLiveQuoteError(true);
+							reconnectTimer = window.setTimeout(() => {
+								reconnectTimer = null;
+								void reconnectIfMarketOpen();
+							}, MARKET_DATA_RECONNECT_DELAY_MS);
+						};
+						async function reconnectIfMarketOpen() {
+							if (!isCurrentRefresh()) return;
+							try {
+								const latestQuotes = await downloadIntradayQuotes(
+									storedStocks.map(({ ticker }) => ticker),
+									serverCredentials,
+								);
+								if (!isCurrentRefresh()) return;
+								setStocks(
+									storedStocks.map((stock, index) => ({
+										...stock,
+										...toIntradayQuoteDisplay(latestQuotes[index]),
+									})),
+								);
+								if (latestQuotes.every((quote) => quote.isClose)) {
+									setLiveQuoteError(false);
+									return;
+								}
+								quotesByTicker.clear();
+								for (const quote of latestQuotes) {
+									quotesByTicker.set(quote.code, quote);
+								}
+								connectMarketDataSocket();
+							} catch {
+								scheduleReconnect();
+							}
+						}
+						function connectMarketDataSocket() {
+							if (!isCurrentRefresh()) return;
+
+							let socket: WebSocket;
+							try {
+								socket = new WebSocket(
+									getMarketDataWebSocketUrl(serverCredentials.serverAddress),
+								);
+							} catch {
+								scheduleReconnect();
 								return;
 							}
+							marketDataSocket = socket;
+							socket.onopen = () => {
+								if (!isCurrentRefresh() || marketDataSocket !== socket) return;
+								setLiveQuoteError(false);
+								socket.send(
+									JSON.stringify({
+										event: "subscribe",
+										data: {
+											channel: "trades",
+											symbols: storedStocks.map(({ ticker }) => ticker),
+										},
+									}),
+								);
+							};
+							socket.onmessage = (event) => {
+								if (!isCurrentRefresh() || marketDataSocket !== socket) return;
+								try {
+									const message: unknown = JSON.parse(String(event.data));
+									if (
+										typeof message !== "object" ||
+										message === null ||
+										!("event" in message) ||
+										message.event !== "data" ||
+										!("data" in message) ||
+										typeof message.data !== "object" ||
+										message.data === null ||
+										!("symbol" in message.data) ||
+										!("price" in message.data) ||
+										typeof message.data.symbol !== "string" ||
+										typeof message.data.price !== "number" ||
+										!Number.isFinite(message.data.price)
+									) {
+										return;
+									}
 
-							const quote = quotesByTicker.get(message.data.symbol);
-							if (!quote) return;
-							setStocks((currentStocks) =>
-								currentStocks.map((stock) =>
-									stock.ticker === message.data.symbol
-										? {
-												...stock,
-												...getLiveQuoteDisplay(message.data.price, quote),
-											}
-										: stock,
-								),
-							);
-						} catch {
-							// Ignore malformed WebSocket messages.
+									const quote = quotesByTicker.get(message.data.symbol);
+									if (!quote) return;
+									setStocks((currentStocks) =>
+										currentStocks.map((stock) =>
+											stock.ticker === message.data.symbol
+												? {
+														...stock,
+														...getLiveQuoteDisplay(message.data.price, quote),
+													}
+												: stock,
+										),
+									);
+								} catch {
+									// Ignore malformed WebSocket messages.
+								}
+							};
+							socket.onerror = () => {
+								if (!isCurrentRefresh() || marketDataSocket !== socket) return;
+								scheduleReconnect();
+								socket.close();
+							};
+							socket.onclose = () => {
+								if (!isCurrentRefresh() || marketDataSocket !== socket) return;
+								marketDataSocket = null;
+								scheduleReconnect();
+							};
 						}
-					};
-				})
-				.catch(() => {
-					if (!cancelled) setLiveQuoteError(true);
-				});
+						connectMarketDataSocket();
+					})
+					.catch(() => {
+						if (cancelled || currentRefreshVersion !== refreshVersion) return;
+						setLiveQuoteError(true);
+						if (initialQuotesRetryCount >= INITIAL_QUOTES_MAX_RETRIES) return;
+						initialQuotesRetryCount += 1;
+						initialQuotesRetryTimer = window.setTimeout(() => {
+							initialQuotesRetryTimer = null;
+							loadInitialQuotes();
+						}, INITIAL_QUOTES_RETRY_DELAY_MS);
+					});
+			};
+			loadInitialQuotes();
 		};
 		refreshStocks();
 		window.addEventListener("storage", refreshStocks);
@@ -244,14 +338,14 @@ function Home() {
 									to="/stocks/$ticker"
 									params={{ ticker: stock.ticker }}
 								>
-									{stock.price}
+									<RollingNumber value={stock.price} />
 								</Link>
 							) : (
 								<span
 									className={`stock-price ${stock.direction}`}
 									aria-disabled="true"
 								>
-									{stock.price}
+									<RollingNumber value={stock.price} />
 								</span>
 							)}
 							{isAuthenticated ? (

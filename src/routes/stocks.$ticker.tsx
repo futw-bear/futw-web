@@ -11,6 +11,7 @@ import {
 	CandlestickChart,
 	getTimeframeLabel,
 } from "#/components/candlestick-chart";
+import { RollingNumber } from "#/components/rolling-number";
 import {
 	type Candle,
 	type CandleTimeframe,
@@ -194,15 +195,19 @@ function StockDetailPage() {
 						}
 
 						setQuote((currentQuote) => {
-							const openPrice = parseFormattedPrice(currentQuote.openPrice);
+							const previousClose = parseFormattedPrice(
+								currentQuote.previousClose,
+							);
 							const highPrice = parseFormattedPrice(currentQuote.highPrice);
 							const lowPrice = parseFormattedPrice(currentQuote.lowPrice);
 							const change =
-								openPrice === null ? null : message.data.price - openPrice;
-							const changePercent =
-								openPrice === null || openPrice === 0 || change === null
+								previousClose === null
 									? null
-									: (change / openPrice) * 100;
+									: message.data.price - previousClose;
+							const changePercent =
+								previousClose === null || previousClose === 0 || change === null
+									? null
+									: (change / previousClose) * 100;
 							return {
 								...currentQuote,
 								closePrice: formatPrice(message.data.price),
@@ -336,7 +341,9 @@ function StockDetailPage() {
 					<p>{quoteStatus}</p>
 					<div className="quote-row">
 						<div className={`main-quote ${quote.direction}`}>
-							<strong>{quote.closePrice}</strong>
+							<strong>
+								<RollingNumber value={quote.closePrice} />
+							</strong>
 							<span>
 								{quote.change} {quote.changePercent}
 							</span>
