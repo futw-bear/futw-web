@@ -40,11 +40,12 @@ function getMarketDataWebSocketUrl(serverAddress: string) {
 }
 
 function getLiveQuoteDisplay(price: number, quote: IntradayQuote) {
-	const change = quote.openPrice === null ? null : price - quote.openPrice;
+	const change =
+		quote.previousClose === null ? null : price - quote.previousClose;
 	const changePercent =
-		quote.openPrice === null || quote.openPrice === 0 || change === null
+		quote.previousClose === null || quote.previousClose === 0 || change === null
 			? null
-			: (change / quote.openPrice) * 100;
+			: (change / quote.previousClose) * 100;
 
 	return toIntradayQuoteDisplay({
 		...quote,

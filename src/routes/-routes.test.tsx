@@ -211,6 +211,7 @@ describe("application routes", () => {
 				new Response(
 					JSON.stringify({
 						openPrice: 100,
+						previousClose: 90,
 						closePrice: 101,
 						change: 1,
 						changePercent: 1,
@@ -264,8 +265,8 @@ describe("application routes", () => {
 			}),
 		);
 		expect(await page.findByText("105.00")).toBeTruthy();
-		expect(page.getByText("+5.00")).toBeTruthy();
-		expect(page.getByText("+5.00%")).toBeTruthy();
+		expect(page.getByText("+15.00")).toBeTruthy();
+		expect(page.getByText("+16.67%")).toBeTruthy();
 
 		vi.useFakeTimers();
 		act(() => firstSocket.onerror?.());
@@ -446,6 +447,7 @@ describe("application routes", () => {
 						highPrice: 1040,
 						lowPrice: 1020,
 						openPrice: 1025,
+						previousClose: 1020,
 						isClose: false,
 					}),
 					{ status: 200 },
@@ -495,9 +497,9 @@ describe("application routes", () => {
 		await waitFor(() =>
 			expect(summary.getAllByText("1,050.00")).toHaveLength(2),
 		);
-		expect(summary.getByText("+25.00 +2.44%")).toBeTruthy();
+		expect(summary.getByText("+30.00 +2.94%")).toBeTruthy();
 		expect(summary.getAllByText("1,050.00")).toHaveLength(2);
-		expect(summary.getByText("1,020.00")).toBeTruthy();
+		expect(summary.getAllByText("1,020.00")).toHaveLength(2);
 
 		unmount();
 		expect(socket?.close).toHaveBeenCalled();

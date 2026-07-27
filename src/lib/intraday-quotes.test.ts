@@ -11,6 +11,7 @@ describe("intraday quotes", () => {
 			new Response(
 				JSON.stringify({
 					data: {
+						previousClose: "1,035.00",
 						closePrice: "1,048.50",
 						change: "13.50",
 						changePercent: "1.30%",
@@ -38,6 +39,7 @@ describe("intraday quotes", () => {
 				}),
 			}),
 		);
+		expect(quote.previousClose).toBe(1035);
 		expect(toIntradayQuoteDisplay(quote)).toEqual({
 			price: "1,048.50",
 			change: "+13.50",
