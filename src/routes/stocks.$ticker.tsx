@@ -11,6 +11,7 @@ import {
 	CandlestickChart,
 	getTimeframeLabel,
 } from "#/components/candlestick-chart";
+import { RollingNumber } from "#/components/rolling-number";
 import {
 	type Candle,
 	type CandleTimeframe,
@@ -340,7 +341,9 @@ function StockDetailPage() {
 					<p>{quoteStatus}</p>
 					<div className="quote-row">
 						<div className={`main-quote ${quote.direction}`}>
-							<strong>{quote.closePrice}</strong>
+							<strong>
+								<RollingNumber value={quote.closePrice} />
+							</strong>
 							<span>
 								{quote.change} {quote.changePercent}
 							</span>

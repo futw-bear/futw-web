@@ -3,6 +3,7 @@ import { ArrowUpDown, CircleMinus, Pencil, Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { MainNavigation, PageHeader } from "#/components/app-shell";
+import { RollingNumber } from "#/components/rolling-number";
 import {
 	downloadIntradayQuotes,
 	type IntradayQuote,
@@ -337,14 +338,14 @@ function Home() {
 									to="/stocks/$ticker"
 									params={{ ticker: stock.ticker }}
 								>
-									{stock.price}
+									<RollingNumber value={stock.price} />
 								</Link>
 							) : (
 								<span
 									className={`stock-price ${stock.direction}`}
 									aria-disabled="true"
 								>
-									{stock.price}
+									<RollingNumber value={stock.price} />
 								</span>
 							)}
 							{isAuthenticated ? (
